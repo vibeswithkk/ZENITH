@@ -61,6 +61,35 @@ try:
         ComparisonResult,
         benchmark_matmul_vs_numpy,
     )
+    from .autotuner import (
+        KernelAutotuner,
+        TuningConfig,
+        TuningResult,
+        SearchSpace,
+        GridSearch,
+        RandomSearch,
+        MATMUL_SEARCH_SPACE,
+        CONV2D_SEARCH_SPACE,
+        autotune_matmul,
+    )
+    from .mixed_precision import (
+        Precision,
+        PrecisionPolicy,
+        MixedPrecisionManager,
+        DynamicLossScaler,
+        convert_to_fp16,
+        convert_to_bf16,
+        check_precision_safety,
+    )
+    from .quantization import (
+        QuantizationMode,
+        CalibrationMethod,
+        QuantizationParams,
+        Quantizer,
+        QATSimulator,
+        quantize_model_static,
+        measure_quantization_error,
+    )
 
     _PHASE2_AVAILABLE = True
 except ImportError:
