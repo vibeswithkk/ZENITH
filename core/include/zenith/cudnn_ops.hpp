@@ -264,9 +264,18 @@ inline Status conv2d_forward(const float *input, const float *weight,
   CUDNN_CHECK(output_desc.set_4d(CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, N, C_out,
                                  H_out, W_out));
 
-  // Use DIRECT algorithm for cuDNN 9 compatibility
-  // This is the most basic algorithm with no workspace requirements
-  cudnnConvolutionFwdAlgo_t algo = CUDNN_CONVOLUTION_FWD_ALGO_DIRECT;
+  // Try multiple algorithms in case one fails
+  // WINOGRAD is optimized for 3x3 convolutions
+  cudnnConvolutionFwdAlgo_t algo;
+  
+  // For 3x3 kernels, use WINOGRAD; otherwise use GEMM
+  if (K_h == 3 && K_w == 3) {
+    algo = CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD;
+  } else if (K_h == 1 && K_w == 1) {
+    algo = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM;
+  } else {
+    algo = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM;
+  }
 
   // Perform convolution
   float alpha = 1.0f, beta = 0.0f;
