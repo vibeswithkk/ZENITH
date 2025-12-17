@@ -174,16 +174,17 @@ class ZenithBertEncoderLayer:
         scale = 1.0 / np.sqrt(self.head_dim)
         attn_scores = np.matmul(Q_np, K_np.transpose(0, 1, 3, 2)) * scale
 
-        # Softmax (use GPU for each head)
+        # Softmax per row (use GPU for each head)
+        # IMPORTANT: softmax_gpu is [batch, len] and applies softmax over last dim
+        # So we pass [seq_len, seq_len] to get row-wise softmax (correct for attention)
         attn_probs = np.zeros_like(attn_scores)
         for b in range(batch_size):
             for h in range(self.num_heads):
-                scores_2d = attn_scores[b, h].reshape(1, -1)
-                scores_gpu = cuda.to_gpu(
-                    np.ascontiguousarray(scores_2d.astype(np.float32))
-                )
-                probs_gpu = cuda.softmax_gpu(scores_gpu)
-                attn_probs[b, h] = probs_gpu.to_numpy().reshape(seq_len, seq_len)
+                # Pass [seq_len, seq_len] - softmax applied over last dim (each row)
+                scores_2d = attn_scores[b, h].astype(np.float32)  # [seq_len, seq_len]
+                scores_gpu = cuda.to_gpu(np.ascontiguousarray(scores_2d))
+                probs_gpu = cuda.softmax_gpu(scores_gpu)  # softmax over last dim
+                attn_probs[b, h] = probs_gpu.to_numpy()
 
         # Apply attention to values
         attn_output = np.matmul(attn_probs, V_np)  # [B, H, S, D]
