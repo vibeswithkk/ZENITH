@@ -402,85 +402,78 @@ __global__ void max_kernel(const float *input, float *output, size_t size) {
 }
 
 // ============================================================================
-// Wrapper Functions
+// Wrapper Functions (exported, no inline)
 // ============================================================================
 
-inline void relu_f32(float *data, size_t size, cudaStream_t stream = 0) {
+void relu_f32(float *data, size_t size) {
   int blocks = div_ceil(size, BLOCK_SIZE);
-  relu_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(data, size);
+  relu_kernel<<<blocks, BLOCK_SIZE>>>(data, size);
 }
 
-inline void sigmoid_f32(float *data, size_t size, cudaStream_t stream = 0) {
+void sigmoid_f32(float *data, size_t size) {
   int blocks = div_ceil(size, BLOCK_SIZE);
-  sigmoid_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(data, size);
+  sigmoid_kernel<<<blocks, BLOCK_SIZE>>>(data, size);
 }
 
-inline void tanh_f32(float *data, size_t size, cudaStream_t stream = 0) {
+void tanh_f32(float *data, size_t size) {
   int blocks = div_ceil(size, BLOCK_SIZE);
-  tanh_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(data, size);
+  tanh_kernel<<<blocks, BLOCK_SIZE>>>(data, size);
 }
 
-inline void add_f32(const float *A, const float *B, float *C, size_t size,
-                    cudaStream_t stream = 0) {
+void add_f32(const float *A, const float *B, float *C, size_t size) {
   int blocks = div_ceil(size, BLOCK_SIZE);
-  add_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(A, B, C, size);
+  add_kernel<<<blocks, BLOCK_SIZE>>>(A, B, C, size);
 }
 
-inline void matmul_f32(const float *A, const float *B, float *C, int M, int N,
-                       int K, cudaStream_t stream = 0) {
+void matmul_f32(const float *A, const float *B, float *C, int M, int N, int K) {
   dim3 block(TILE_SIZE, TILE_SIZE);
   dim3 grid(div_ceil(N, TILE_SIZE), div_ceil(M, TILE_SIZE));
-  matmul_tiled_kernel<<<grid, block, 0, stream>>>(A, B, C, M, N, K);
+  matmul_tiled_kernel<<<grid, block>>>(A, B, C, M, N, K);
 }
 
-inline void conv2d_f32(const float *input, const float *weight,
-                       const float *bias, float *output, int N, int C_in, int H,
-                       int W, int C_out, int K_h, int K_w, int stride_h,
-                       int stride_w, int pad_h, int pad_w,
-                       cudaStream_t stream = 0) {
+void conv2d_f32(const float *input, const float *weight, const float *bias,
+                float *output, int N, int C_in, int H, int W, int C_out,
+                int K_h, int K_w, int stride_h, int stride_w, int pad_h,
+                int pad_w) {
   int H_out = (H + 2 * pad_h - K_h) / stride_h + 1;
   int W_out = (W + 2 * pad_w - K_w) / stride_w + 1;
 
   dim3 block(16, 16);
   dim3 grid(div_ceil(W_out, 16), div_ceil(H_out, 16), N * C_out);
-  conv2d_kernel<<<grid, block, 0, stream>>>(
-      input, weight, bias, output, N, C_in, H, W, C_out, K_h, K_w, stride_h,
-      stride_w, pad_h, pad_w, H_out, W_out);
+  conv2d_kernel<<<grid, block>>>(input, weight, bias, output, N, C_in, H, W,
+                                 C_out, K_h, K_w, stride_h, stride_w, pad_h,
+                                 pad_w, H_out, W_out);
 }
 
-inline void maxpool2d_f32(const float *input, float *output, int N, int C,
-                          int H, int W, int K_h, int K_w, int stride_h,
-                          int stride_w, cudaStream_t stream = 0) {
+void maxpool2d_f32(const float *input, float *output, int N, int C, int H,
+                   int W, int K_h, int K_w, int stride_h, int stride_w) {
   int H_out = (H - K_h) / stride_h + 1;
   int W_out = (W - K_w) / stride_w + 1;
 
   dim3 block(16, 16);
   dim3 grid(div_ceil(W_out, 16), div_ceil(H_out, 16), N * C);
-  maxpool2d_kernel<<<grid, block, 0, stream>>>(
-      input, output, N, C, H, W, K_h, K_w, stride_h, stride_w, H_out, W_out);
+  maxpool2d_kernel<<<grid, block>>>(input, output, N, C, H, W, K_h, K_w,
+                                    stride_h, stride_w, H_out, W_out);
 }
 
 // ============================================================================
 // Transformer/BERT Kernel Wrappers
 // ============================================================================
 
-inline void gelu_f32(const float *input, float *output, size_t size,
-                     cudaStream_t stream = 0) {
+void gelu_f32(const float *input, float *output, size_t size) {
   int blocks = div_ceil(size, BLOCK_SIZE);
-  gelu_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(input, output, size);
+  gelu_kernel<<<blocks, BLOCK_SIZE>>>(input, output, size);
 }
 
-inline void layernorm_f32(const float *input, float *output, const float *gamma,
-                          const float *beta, int batch, int hidden, float eps,
-                          cudaStream_t stream = 0) {
+void layernorm_f32(const float *input, float *output, const float *gamma,
+                   const float *beta, int batch, int hidden, float eps) {
   // One block per batch element
-  layernorm_kernel<<<batch, BLOCK_SIZE, 0, stream>>>(input, output, gamma, beta,
-                                                     batch, hidden, eps);
+  layernorm_kernel<<<batch, BLOCK_SIZE>>>(input, output, gamma, beta, batch,
+                                          hidden, eps);
 }
 
-inline void softmax_2d_f32(const float *input, float *output, int batch,
-                           int len, cudaStream_t stream = 0) {
-  softmax_kernel<<<batch, BLOCK_SIZE, 0, stream>>>(input, output, batch, len);
+void softmax_2d_f32(const float *input, float *output, int batch, int len) {
+  softmax_kernel<<<batch, BLOCK_SIZE>>>(input, output, batch, len);
 }
 
 } // namespace cuda_kernels

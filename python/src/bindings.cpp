@@ -11,9 +11,9 @@
 #include <zenith/zenith.hpp>
 
 #ifdef ZENITH_HAS_CUDA
-#include "../../core/src/cuda_kernels.cu" // For GELU, LayerNorm, Softmax
 #include <zenith/cublas_ops.hpp>
 #include <zenith/cuda_backend.hpp>
+#include <zenith/cuda_kernels.hpp> // For GELU, LayerNorm, Softmax
 #include <zenith/gpu_tensor.hpp>
 #ifdef ZENITH_HAS_CUDNN
 #include <zenith/cudnn_ops.hpp>
