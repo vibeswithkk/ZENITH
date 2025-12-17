@@ -51,54 +51,92 @@ def zenith_conv_bn_relu(x, conv_params, bn_params, relu=True):
     return x
 
 
-def zenith_bottleneck(x, block, downsample=None):
+def zenith_bottleneck(x, block, downsample=None, block_name=""):
     """ResNet Bottleneck block: 1x1 -> 3x3 -> 1x1 with skip connection"""
     identity = x
 
-    # Extract parameters
-    conv1_w = block.conv1.weight.detach().cpu().numpy()
-    bn1_params = extract_bn(block.bn1)
+    try:
+        # Extract parameters
+        conv1_w = block.conv1.weight.detach().cpu().numpy()
+        bn1_params = extract_bn(block.bn1)
 
-    conv2_w = block.conv2.weight.detach().cpu().numpy()
-    conv2_s = block.conv2.stride[0]
-    conv2_p = block.conv2.padding[0]
-    bn2_params = extract_bn(block.bn2)
+        conv2_w = block.conv2.weight.detach().cpu().numpy()
+        conv2_s = block.conv2.stride[0]
+        conv2_p = block.conv2.padding[0]
+        bn2_params = extract_bn(block.bn2)
 
-    conv3_w = block.conv3.weight.detach().cpu().numpy()
-    bn3_params = extract_bn(block.bn3)
+        conv3_w = block.conv3.weight.detach().cpu().numpy()
+        bn3_params = extract_bn(block.bn3)
 
-    # Forward pass
-    # Conv1: 1x1, stride=1, padding=0
-    out = cuda.conv2d(x, conv1_w, stride=1, padding=0)
-    out = cuda.batch_norm(out, *bn1_params[:4], bn1_params[4])
-    out = cuda.relu(out)
+        # Forward pass with debug
+        # Conv1: 1x1, stride=1, padding=0
+        out = cuda.conv2d(x, conv1_w, stride=1, padding=0)
+        out = cuda.batch_norm(
+            out,
+            bn1_params[0],
+            bn1_params[1],
+            bn1_params[2],
+            bn1_params[3],
+            bn1_params[4],
+        )
+        out = cuda.relu(out)
 
-    # Conv2: 3x3, stride varies (1 or 2), padding=1
-    out = cuda.conv2d(out, conv2_w, stride=conv2_s, padding=conv2_p)
-    out = cuda.batch_norm(out, *bn2_params[:4], bn2_params[4])
-    out = cuda.relu(out)
+        # Conv2: 3x3, stride varies (1 or 2), padding=1
+        out = cuda.conv2d(out, conv2_w, stride=conv2_s, padding=conv2_p)
+        out = cuda.batch_norm(
+            out,
+            bn2_params[0],
+            bn2_params[1],
+            bn2_params[2],
+            bn2_params[3],
+            bn2_params[4],
+        )
+        out = cuda.relu(out)
 
-    # Conv3: 1x1, stride=1, padding=0
-    out = cuda.conv2d(out, conv3_w, stride=1, padding=0)
-    out = cuda.batch_norm(out, *bn3_params[:4], bn3_params[4])
+        # Conv3: 1x1, stride=1, padding=0
+        out = cuda.conv2d(out, conv3_w, stride=1, padding=0)
+        out = cuda.batch_norm(
+            out,
+            bn3_params[0],
+            bn3_params[1],
+            bn3_params[2],
+            bn3_params[3],
+            bn3_params[4],
+        )
 
-    # Downsample if needed (for dimension matching)
-    if downsample is not None:
-        ds_conv_w = downsample[0].weight.detach().cpu().numpy()
-        ds_conv_s = downsample[0].stride[0]
-        ds_bn_params = extract_bn(downsample[1])
+        # Downsample if needed (for dimension matching)
+        if downsample is not None:
+            ds_conv_w = downsample[0].weight.detach().cpu().numpy()
+            ds_conv_s = downsample[0].stride[0]
+            ds_bn_params = extract_bn(downsample[1])
 
-        identity = cuda.conv2d(x, ds_conv_w, stride=ds_conv_s, padding=0)
-        identity = cuda.batch_norm(identity, *ds_bn_params[:4], ds_bn_params[4])
+            identity = cuda.conv2d(x, ds_conv_w, stride=ds_conv_s, padding=0)
+            identity = cuda.batch_norm(
+                identity,
+                ds_bn_params[0],
+                ds_bn_params[1],
+                ds_bn_params[2],
+                ds_bn_params[3],
+                ds_bn_params[4],
+            )
 
-    # Residual connection
-    out = cuda.add(out, identity)
-    out = cuda.relu(out)
+        # Residual connection
+        out = cuda.add(out, identity)
+        out = cuda.relu(out)
 
-    return out
+        return out
+    except Exception as e:
+        print(f"Error in {block_name}:")
+        print(f"  Input shape: {x.shape}")
+        print(f"  conv1_w: {conv1_w.shape}")
+        print(f"  conv2_w: {conv2_w.shape}, stride={conv2_s}, padding={conv2_p}")
+        print(f"  conv3_w: {conv3_w.shape}")
+        if downsample is not None:
+            print(f"  downsample_w: {ds_conv_w.shape}, stride={ds_conv_s}")
+        raise
 
 
-def zenith_layer(x, layer):
+def zenith_layer(x, layer, layer_name="layer"):
     """Process an entire layer (sequence of bottleneck blocks)"""
     for i, block in enumerate(layer):
         downsample = (
@@ -106,7 +144,7 @@ def zenith_layer(x, layer):
             if hasattr(block, "downsample") and block.downsample
             else None
         )
-        x = zenith_bottleneck(x, block, downsample)
+        x = zenith_bottleneck(x, block, downsample, f"{layer_name}.{i}")
     return x
 
 
@@ -151,10 +189,10 @@ def zenith_resnet50(x, model):
     x = cuda.maxpool2d(x, kernel_size=3, stride=2, padding=1)
 
     # Residual layers
-    x = zenith_layer(x, model.layer1)
-    x = zenith_layer(x, model.layer2)
-    x = zenith_layer(x, model.layer3)
-    x = zenith_layer(x, model.layer4)
+    x = zenith_layer(x, model.layer1, "layer1")
+    x = zenith_layer(x, model.layer2, "layer2")
+    x = zenith_layer(x, model.layer3, "layer3")
+    x = zenith_layer(x, model.layer4, "layer4")
 
     # Classifier: global avgpool -> flatten -> fc
     x = cuda.global_avgpool(x)
