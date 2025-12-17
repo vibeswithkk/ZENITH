@@ -13,12 +13,19 @@
 namespace zenith {
 namespace flash_attention {
 
-/// FlashAttention forward pass
+/// FlashAttention forward pass (FP32)
 /// Q, K, V: [batch, num_heads, seq_len, head_dim]
 /// O: output [batch, num_heads, seq_len, head_dim]
 void flash_attention_forward(const float *Q, const float *K, const float *V,
                              float *O, int batch_size, int num_heads,
                              int seq_len, int head_dim);
+
+/// FlashAttention forward pass (FP16 - optimized)
+/// Q, K, V: [batch, num_heads, seq_len, head_dim] in half precision
+/// O: output [batch, num_heads, seq_len, head_dim] in half precision
+void flash_attention_forward_fp16(const __half *Q, const __half *K,
+                                  const __half *V, __half *O, int batch_size,
+                                  int num_heads, int seq_len, int head_dim);
 
 } // namespace flash_attention
 } // namespace zenith
