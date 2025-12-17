@@ -138,3 +138,7 @@ exclude_lines = [
 fail_under = 65
 show_missing = true
 
+[tool.mutmut]
+paths_to_mutate = "zenith/core/"
+tests_dir = "tests/python/"
+runner = ".venv/bin/python -m pytest tests/python/test_core_unit.py -x -q"
