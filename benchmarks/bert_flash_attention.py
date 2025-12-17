@@ -102,16 +102,12 @@ class BertEncoderGPU:
             )
         )
 
-    def forward(self, x_gpu):
+    def forward(self, x_np):
         """
-        GPU-resident forward pass.
-        x_gpu: GpuTensor [batch, seq_len, hidden_size]
+        Forward pass with FlashAttention.
+        x_np: numpy array [batch, seq_len, hidden_size]
         """
-        batch_size = x_gpu.shape[0]
-        seq_len = x_gpu.shape[1]
-
-        # Get numpy for linear operations (temporary - will be replaced with GPU matmul)
-        x_np = x_gpu.to_numpy()
+        batch_size, seq_len, _ = x_np.shape
         x_2d = x_np.reshape(batch_size * seq_len, self.hidden_size)
 
         # === QKV Projection ===
@@ -219,9 +215,9 @@ if __name__ == "__main__":
     with torch.no_grad():
         torch_out = torch_layer(x_torch)[0].cpu().numpy()
 
-    # Zenith with FlashAttention
+    # Zenith with FlashAttention (pass numpy directly)
     t0 = time.perf_counter()
-    zenith_out = zenith_encoder.forward(x_gpu)
+    zenith_out = zenith_encoder.forward(x_np)
     zenith_time = (time.perf_counter() - t0) * 1000
 
     # Compare
@@ -237,13 +233,13 @@ if __name__ == "__main__":
 
     # Warmup
     for _ in range(5):
-        _ = zenith_encoder.forward(x_gpu)
+        _ = zenith_encoder.forward(x_np)
 
     # Zenith timing
     zenith_times = []
     for _ in range(20):
         t0 = time.perf_counter()
-        _ = zenith_encoder.forward(x_gpu)
+        _ = zenith_encoder.forward(x_np)
         zenith_times.append((time.perf_counter() - t0) * 1000)
 
     # PyTorch timing
