@@ -13,7 +13,8 @@
 #ifdef ZENITH_HAS_CUDA
 #include <zenith/cublas_ops.hpp>
 #include <zenith/cuda_backend.hpp>
-#include <zenith/cuda_kernels.hpp> // For GELU, LayerNorm, Softmax
+#include <zenith/cuda_kernels.hpp>    // For GELU, LayerNorm, Softmax
+#include <zenith/flash_attention.hpp> // FlashAttention for Transformer
 #include <zenith/gpu_tensor.hpp>
 #ifdef ZENITH_HAS_CUDNN
 #include <zenith/cudnn_ops.hpp>
@@ -1362,6 +1363,38 @@ PYBIND11_MODULE(_zenith_core, m) {
         return output;
       },
       py::arg("input"), "Softmax on GPU tensor (zero copy)");
+
+  // FlashAttention for Multi-Head Attention
+  // Q, K, V, O: [batch, num_heads, seq_len, head_dim]
+  cuda.def(
+      "flash_attention_gpu",
+      [](zenith::GpuTensor &Q, zenith::GpuTensor &K, zenith::GpuTensor &V) {
+        if (!Q.is_valid() || !K.is_valid() || !V.is_valid()) {
+          throw std::runtime_error(
+              "flash_attention_gpu requires valid GpuTensors");
+        }
+        if (Q.ndim() != 4 || K.ndim() != 4 || V.ndim() != 4) {
+          throw std::runtime_error("flash_attention_gpu requires 4D tensors "
+                                   "[batch, heads, seq, dim]");
+        }
+
+        int batch_size = Q.dim(0);
+        int num_heads = Q.dim(1);
+        int seq_len = Q.dim(2);
+        int head_dim = Q.dim(3);
+
+        zenith::GpuTensor output(Q.shape());
+
+        zenith::flash_attention::flash_attention_forward(
+            Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
+            output.data_ptr<float>(), batch_size, num_heads, seq_len, head_dim);
+        cudaDeviceSynchronize();
+
+        return output;
+      },
+      py::arg("Q"), py::arg("K"), py::arg("V"),
+      "FlashAttention on GPU tensors [batch, heads, seq, dim] - memory "
+      "efficient");
 
   cuda.def("has_cudnn", []() { return true; });
 #else
