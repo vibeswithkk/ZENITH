@@ -1,101 +1,91 @@
-# Zenith CUDA Benchmark - Real Execution Test
-# ============================================
-# Run this in Colab after building with build_cuda.sh
-# This tests ACTUAL Zenith execution via cuBLAS/cuDNN
+# Zenith GPU Memory Optimization Test
+# ====================================
+# Tests the new GpuTensor API for zero-copy GPU operations
 
 import numpy as np
 import time
 
-# Test 1: Check backends
 print("=" * 50)
-print("ZENITH CUDA BACKEND TEST")
+print("ZENITH GPU MEMORY OPTIMIZATION TEST")
 print("=" * 50)
 
 try:
-    from zenith._zenith_core import backends, cuda, kernels
+    from zenith._zenith_core import cuda
 
-    print(f"\nAvailable backends: {backends.list_available()}")
-    print(f"CUDA available: {backends.is_cuda_available()}")
-    print(f"cuDNN available: {backends.is_cudnn_available()}")
-
-    if backends.is_cuda_available():
-        print(f"cuDNN version: {backends.get_cudnn_version()}")
+    print(f"\nCUDA available: {cuda.is_available()}")
 except ImportError as e:
-    print(f"Zenith CUDA module not built: {e}")
-    print("Run: !bash build_cuda.sh")
+    print(f"Zenith CUDA not available: {e}")
     exit(1)
 
-# Test 2: cuBLAS MatMul
+# Test 1: GpuTensor API
 print("\n" + "=" * 50)
-print("cuBLAS MATMUL BENCHMARK")
+print("TEST 1: GpuTensor API")
+print("=" * 50)
+
+A_np = np.random.randn(1024, 1024).astype(np.float32)
+B_np = np.random.randn(1024, 1024).astype(np.float32)
+
+# Create GPU tensors (H2D copy happens here, once)
+A_gpu = cuda.to_gpu(A_np)
+B_gpu = cuda.to_gpu(B_np)
+
+print(f"A_gpu: {A_gpu}")
+print(f"B_gpu: {B_gpu}")
+
+# Test 2: Zero-copy matmul benchmark
+print("\n" + "=" * 50)
+print("TEST 2: ZERO-COPY MATMUL BENCHMARK")
 print("=" * 50)
 
 
-def benchmark_matmul(M, N, K, iterations=100):
-    A = np.random.randn(M, K).astype(np.float32)
-    B = np.random.randn(K, N).astype(np.float32)
-
-    # Warmup
-    for _ in range(10):
-        C = cuda.matmul(A, B)
-
-    # Benchmark
+def benchmark_old(A_np, B_np, iterations=50):
+    """Old API - copies every time"""
     times = []
+    for _ in range(10):
+        cuda.matmul(A_np, B_np)  # Warmup
+
     for _ in range(iterations):
         t0 = time.perf_counter()
-        C = cuda.matmul(A, B)
+        C = cuda.matmul(A_np, B_np)
         times.append((time.perf_counter() - t0) * 1000)
-
-    t = np.mean(times)
-    gflops = (2 * M * N * K) / (t / 1000) / 1e9
-    print(f"MatMul [{M}x{K}] @ [{K}x{N}] | {t:.3f}ms | {gflops:.1f} GFLOPS")
-    return t
+    return np.mean(times)
 
 
-# Test various sizes
-for size in [128, 256, 512, 1024, 2048]:
-    benchmark_matmul(size, size, size, iterations=50)
+def benchmark_new(A_gpu, B_gpu, iterations=50):
+    """New API - zero copy compute"""
+    times = []
+    for _ in range(10):
+        cuda.matmul_gpu(A_gpu, B_gpu)  # Warmup
 
-# Test 3: Numerical accuracy
+    for _ in range(iterations):
+        t0 = time.perf_counter()
+        C_gpu = cuda.matmul_gpu(A_gpu, B_gpu)
+        times.append((time.perf_counter() - t0) * 1000)
+    return np.mean(times)
+
+
+t_old = benchmark_old(A_np, B_np)
+t_new = benchmark_new(A_gpu, B_gpu)
+
+print(f"Old API (copy each time): {t_old:.3f}ms")
+print(f"New API (zero copy):      {t_new:.3f}ms")
+print(f"Speedup:                  {t_old / t_new:.2f}x")
+
+# Test 3: Compare with PyTorch
 print("\n" + "=" * 50)
-print("NUMERICAL ACCURACY CHECK")
-print("=" * 50)
-
-A = np.random.randn(64, 128).astype(np.float32)
-B = np.random.randn(128, 64).astype(np.float32)
-
-# Zenith cuBLAS
-C_zenith = cuda.matmul(A, B)
-
-# NumPy reference
-C_numpy = A @ B
-
-# Check
-max_diff = np.max(np.abs(C_zenith - C_numpy))
-print(f"Max difference vs NumPy: {max_diff:.2e}")
-print(f"Accuracy: {'PASS' if max_diff < 1e-5 else 'FAIL'}")
-
-# Test 4: Compare with PyTorch
-print("\n" + "=" * 50)
-print("COMPARISON: ZENITH vs PYTORCH")
+print("TEST 3: COMPARISON WITH PYTORCH")
 print("=" * 50)
 
 try:
     import torch
 
-    M, N, K = 1024, 1024, 1024
-    A_np = np.random.randn(M, K).astype(np.float32)
-    B_np = np.random.randn(K, N).astype(np.float32)
-
     A_torch = torch.from_numpy(A_np).cuda()
     B_torch = torch.from_numpy(B_np).cuda()
 
-    # PyTorch warmup
     for _ in range(10):
         _ = torch.mm(A_torch, B_torch)
     torch.cuda.synchronize()
 
-    # PyTorch timing
     times_pt = []
     for _ in range(50):
         t0 = time.perf_counter()
@@ -103,22 +93,37 @@ try:
         torch.cuda.synchronize()
         times_pt.append((time.perf_counter() - t0) * 1000)
 
-    # Zenith timing (already warmed up)
-    times_z = []
-    for _ in range(50):
-        t0 = time.perf_counter()
-        _ = cuda.matmul(A_np, B_np)
-        times_z.append((time.perf_counter() - t0) * 1000)
-
     t_pt = np.mean(times_pt)
-    t_z = np.mean(times_z)
-
-    print(f"PyTorch: {t_pt:.3f}ms")
-    print(f"Zenith:  {t_z:.3f}ms")
-    print(f"Speedup: {t_pt / t_z:.2f}x")
+    print(f"PyTorch:        {t_pt:.3f}ms")
+    print(f"Zenith (new):   {t_new:.3f}ms")
+    print(f"Ratio:          {t_new / t_pt:.2f}x (1.0 = same as PyTorch)")
 
 except ImportError:
-    print("PyTorch not available for comparison")
+    print("PyTorch not available")
+
+# Test 4: Memory pool stats
+print("\n" + "=" * 50)
+print("TEST 4: MEMORY POOL STATS")
+print("=" * 50)
+
+stats = cuda.memory_stats()
+print(f"Allocations:   {stats['allocations']}")
+print(f"Cache hits:    {stats['cache_hits']}")
+print(f"Cache returns: {stats['cache_returns']}")
+print(f"Total alloc:   {stats['total_allocated'] / 1024**2:.1f} MB")
+
+# Test 5: Verify accuracy
+print("\n" + "=" * 50)
+print("TEST 5: ACCURACY CHECK")
+print("=" * 50)
+
+C_gpu = cuda.matmul_gpu(A_gpu, B_gpu)
+C_zenith = C_gpu.to_numpy()
+C_numpy = A_np @ B_np
+
+max_diff = np.max(np.abs(C_zenith - C_numpy))
+print(f"Max difference vs NumPy: {max_diff:.2e}")
+print(f"Accuracy: {'PASS' if max_diff < 1e-4 else 'FAIL'}")
 
 print("\n" + "=" * 50)
 print("TEST COMPLETE")

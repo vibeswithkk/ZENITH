@@ -13,6 +13,7 @@
 #ifdef ZENITH_HAS_CUDA
 #include <zenith/cublas_ops.hpp>
 #include <zenith/cuda_backend.hpp>
+#include <zenith/gpu_tensor.hpp>
 #ifdef ZENITH_HAS_CUDNN
 #include <zenith/cudnn_ops.hpp>
 #endif
@@ -639,6 +640,129 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "is_available", []() { return zenith::cublas::is_cublas_available(); },
       "Check if CUDA is available");
+
+  // ========================================================================
+  // GpuTensor Class Bindings
+  // ========================================================================
+  py::class_<zenith::GpuTensor>(cuda, "GpuTensor")
+      .def(py::init<>())
+      .def("is_valid", &zenith::GpuTensor::is_valid)
+      .def("numel", &zenith::GpuTensor::numel)
+      .def("size_bytes", &zenith::GpuTensor::size_bytes)
+      .def("ndim", &zenith::GpuTensor::ndim)
+      .def(
+          "to_numpy",
+          [](zenith::GpuTensor &self) {
+            if (!self.is_valid()) {
+              throw std::runtime_error("Invalid GpuTensor");
+            }
+            std::vector<ssize_t> py_shape;
+            for (size_t i = 0; i < self.shape().rank(); ++i) {
+              py_shape.push_back(self.shape()[i]);
+            }
+            auto result = py::array_t<float>(py_shape);
+            auto buf = result.request();
+            self.to_host(buf.ptr);
+            return result;
+          },
+          "Copy tensor data from GPU to NumPy array")
+      .def("__repr__", [](const zenith::GpuTensor &self) {
+        if (!self.is_valid())
+          return std::string("GpuTensor(invalid)");
+        std::string s = "GpuTensor(shape=[";
+        for (size_t i = 0; i < self.shape().rank(); ++i) {
+          if (i > 0)
+            s += ", ";
+          s += std::to_string(self.shape()[i]);
+        }
+        s += "], device=cuda)";
+        return s;
+      });
+
+  // ========================================================================
+  // GPU Tensor Factory Functions
+  // ========================================================================
+  cuda.def(
+      "to_gpu",
+      [](py::array_t<float> arr) {
+        auto buf = arr.request();
+        std::vector<int64_t> dims;
+        for (ssize_t i = 0; i < buf.ndim; ++i) {
+          dims.push_back(buf.shape[i]);
+        }
+        return zenith::GpuTensor::from_host(buf.ptr, zenith::Shape(dims),
+                                            zenith::DataType::Float32);
+      },
+      py::arg("array"), "Copy NumPy array to GPU tensor");
+
+  cuda.def(
+      "empty",
+      [](py::tuple shape) {
+        std::vector<int64_t> dims;
+        for (auto d : shape) {
+          dims.push_back(py::cast<int64_t>(d));
+        }
+        return zenith::GpuTensor::empty(zenith::Shape(dims));
+      },
+      py::arg("shape"), "Create empty GPU tensor");
+
+  // ========================================================================
+  // Optimized Operations on GpuTensor (no copy!)
+  // ========================================================================
+  cuda.def(
+      "matmul_gpu",
+      [](zenith::GpuTensor &A, zenith::GpuTensor &B) {
+        if (!A.is_valid() || !B.is_valid()) {
+          throw std::runtime_error("Invalid input tensors");
+        }
+        if (A.ndim() != 2 || B.ndim() != 2) {
+          throw std::runtime_error("matmul_gpu requires 2D tensors");
+        }
+
+        int M = A.dim(0);
+        int K = A.dim(1);
+        int K2 = B.dim(0);
+        int N = B.dim(1);
+
+        if (K != K2) {
+          throw std::runtime_error("Inner dimensions do not match");
+        }
+
+        // Create output tensor on GPU
+        zenith::GpuTensor C(zenith::Shape({M, N}), zenith::DataType::Float32);
+
+        // Call cuBLAS - NO MEMORY COPIES!
+        auto status =
+            zenith::cublas::gemm_f32(A.data_ptr<float>(), B.data_ptr<float>(),
+                                     C.data_ptr<float>(), M, N, K);
+
+        if (!status.ok()) {
+          throw std::runtime_error("cuBLAS matmul failed: " + status.message());
+        }
+
+        return C;
+      },
+      py::arg("A"), py::arg("B"),
+      "Matrix multiplication on GPU tensors (zero copy)");
+
+  // ========================================================================
+  // Memory Pool Management
+  // ========================================================================
+  cuda.def(
+      "memory_stats",
+      []() {
+        auto stats = zenith::get_gpu_memory_stats();
+        py::dict result;
+        result["allocations"] = stats.allocations;
+        result["cache_hits"] = stats.cache_hits;
+        result["cache_returns"] = stats.cache_returns;
+        result["total_allocated"] = stats.total_allocated;
+        return result;
+      },
+      "Get GPU memory pool statistics");
+
+  cuda.def("clear_memory_pool", &zenith::clear_gpu_memory_pool,
+           "Clear GPU memory pool");
 
 #ifdef ZENITH_HAS_CUDNN
   cuda.def(
