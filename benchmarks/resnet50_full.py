@@ -44,7 +44,11 @@ def zenith_conv_bn_relu(x, conv_params, bn_params, relu=True):
     w, b, s, p = conv_params
     gamma, beta, mean, var, eps = bn_params
 
-    x = cuda.conv2d(x, w, b, stride=s, padding=p)
+    # Use keyword args - bias can be None
+    if b is not None:
+        x = cuda.conv2d(x, w, bias=b, stride=s, padding=p)
+    else:
+        x = cuda.conv2d(x, w, stride=s, padding=p)
     x = cuda.batch_norm(x, gamma, beta, mean, var, eps)
     if relu:
         x = cuda.relu(x)
