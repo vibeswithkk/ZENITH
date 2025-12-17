@@ -56,23 +56,40 @@ def zenith_bottleneck(x, block, downsample=None):
     identity = x
 
     # Extract parameters
-    conv1 = extract_conv(block.conv1)
-    bn1 = extract_bn(block.bn1)
-    conv2 = extract_conv(block.conv2)
-    bn2 = extract_bn(block.bn2)
-    conv3 = extract_conv(block.conv3)
-    bn3 = extract_bn(block.bn3)
+    conv1_w = block.conv1.weight.detach().cpu().numpy()
+    bn1_params = extract_bn(block.bn1)
+
+    conv2_w = block.conv2.weight.detach().cpu().numpy()
+    conv2_s = block.conv2.stride[0]
+    conv2_p = block.conv2.padding[0]
+    bn2_params = extract_bn(block.bn2)
+
+    conv3_w = block.conv3.weight.detach().cpu().numpy()
+    bn3_params = extract_bn(block.bn3)
 
     # Forward pass
-    out = zenith_conv_bn_relu(x, conv1, bn1, relu=True)
-    out = zenith_conv_bn_relu(out, conv2, bn2, relu=True)
-    out = zenith_conv_bn_relu(out, conv3, bn3, relu=False)
+    # Conv1: 1x1, stride=1, padding=0
+    out = cuda.conv2d(x, conv1_w, stride=1, padding=0)
+    out = cuda.batch_norm(out, *bn1_params[:4], bn1_params[4])
+    out = cuda.relu(out)
 
-    # Downsample if needed
+    # Conv2: 3x3, stride varies (1 or 2), padding=1
+    out = cuda.conv2d(out, conv2_w, stride=conv2_s, padding=conv2_p)
+    out = cuda.batch_norm(out, *bn2_params[:4], bn2_params[4])
+    out = cuda.relu(out)
+
+    # Conv3: 1x1, stride=1, padding=0
+    out = cuda.conv2d(out, conv3_w, stride=1, padding=0)
+    out = cuda.batch_norm(out, *bn3_params[:4], bn3_params[4])
+
+    # Downsample if needed (for dimension matching)
     if downsample is not None:
-        ds_conv = extract_conv(downsample[0])
-        ds_bn = extract_bn(downsample[1])
-        identity = zenith_conv_bn_relu(x, ds_conv, ds_bn, relu=False)
+        ds_conv_w = downsample[0].weight.detach().cpu().numpy()
+        ds_conv_s = downsample[0].stride[0]
+        ds_bn_params = extract_bn(downsample[1])
+
+        identity = cuda.conv2d(x, ds_conv_w, stride=ds_conv_s, padding=0)
+        identity = cuda.batch_norm(identity, *ds_bn_params[:4], ds_bn_params[4])
 
     # Residual connection
     out = cuda.add(out, identity)
