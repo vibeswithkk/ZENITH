@@ -1,0 +1,4 @@
+# file: /home/viuren/VELTRUMNISCEND/ZENITH/zenith/optimization/autotuner.py
+# hypothesis_version: 6.148.7
+
+[0.0, 100, 128, 1000, 'SearchSpace', 'TuningResult', 'conv2d', 'cpu', 'float32', 'inf', 'matmul', 'r', 'relu', 'tile_c', 'tile_h', 'tile_k', 'tile_m', 'tile_n', 'tile_w', 'unroll_factor', 'vector_width', 'w']

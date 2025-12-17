@@ -1,0 +1,4 @@
+# file: /home/viuren/VELTRUMNISCEND/ZENITH/zenith/adapters/jax_adapter.py
+# hypothesis_version: 6.148.7
+
+[500, 'JaxTraced', 'StableHLO', 'dtype', 'hlo_summary', 'input', 'jax', 'jax_stablehlo_model', 'jax_traced_model', 'module_summary', 'output', 'shape', 'stablehlo_version', 'traced_computation', 'unknown', 'wb']

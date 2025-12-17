@@ -1,0 +1,4 @@
+# file: /home/viuren/VELTRUMNISCEND/ZENITH/zenith/adapters/__init__.py
+# hypothesis_version: 6.148.7
+
+['BaseAdapter', 'JAXAdapter', 'ONNXAdapter', 'PyTorchAdapter', 'TensorFlowAdapter']

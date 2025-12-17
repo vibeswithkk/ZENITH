@@ -1,0 +1,4 @@
+# file: /home/viuren/VELTRUMNISCEND/ZENITH/zenith/optimization/quantization.py
+# hypothesis_version: 6.148.7
+
+[1e-10, 1.0, 99.99, 100.0, 127.0, 128.0, 255.0, -128, 127, 128, 2048, '-inf', 'Weight not found', 'dynamic', 'entropy', 'error', 'inf', 'int8', 'max_abs_error', 'minmax', 'mse', 'percentile', 'qat', 'quantized_model', 'snr_db', 'static']

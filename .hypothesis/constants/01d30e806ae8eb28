@@ -1,0 +1,4 @@
+# file: /home/viuren/VELTRUMNISCEND/ZENITH/zenith/optimization/__init__.py
+# hypothesis_version: 6.148.7
+
+[b'<folded_constant>', 'Add', 'BatchNormalization', 'BnRelu', 'Cast', 'Conv', 'ConvBn', 'ConvBnRelu', 'ConvRelu', 'Div', 'Gemm', 'Identity', 'MatMul', 'Mul', 'Neg', 'PassManager', 'Relu', 'Reshape', 'Sub', 'Transpose', 'bn_relu', 'constant_folding', 'conv_bn', 'conv_bn_relu', 'conv_relu', 'fused_from', 'matmul_add', 'operator_fusion', 'pattern']

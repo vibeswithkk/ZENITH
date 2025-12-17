@@ -1,0 +1,16 @@
+{
+  "123a56bf688540df": {
+    "config_hash": "123a56bf688540df",
+    "params": {
+      "tile_m": 32,
+      "tile_n": 16,
+      "tile_k": 32,
+      "unroll_factor": 4
+    },
+    "mean_time_ms": 0.00047079995511012385,
+    "std_time_ms": 3.5329276325714155e-05,
+    "gflops": 0.0,
+    "memory_bandwidth_gbps": 0.0,
+    "timestamp": 1765935943.220767
+  }
+}

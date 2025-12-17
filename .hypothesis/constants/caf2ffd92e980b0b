@@ -1,0 +1,4 @@
+# file: /home/viuren/VELTRUMNISCEND/ZENITH/zenith/core/node.py
+# hypothesis_version: 6.148.7
+
+['Add', 'AveragePool', 'BatchNormalization', 'Concat', 'Constant', 'Conv', 'ConvTranspose', 'Div', 'Flatten', 'Gelu', 'Gemm', 'GlobalAveragePool', 'Identity', 'LayerNormalization', 'Linear', 'MatMul', 'MaxPool', 'Mul', 'Node', 'Relu', 'Reshape', 'Sigmoid', 'Softmax', 'Sub', 'Tanh', 'Transpose']

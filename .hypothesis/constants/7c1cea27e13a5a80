@@ -1,0 +1,4 @@
+# file: /home/viuren/VELTRUMNISCEND/ZENITH/zenith/optimization/mixed_precision.py
+# hypothesis_version: 6.148.7
+
+[1e-05, 0.001, 0.5, 1.0, 2.0, 2000, 4294901760, 'Add', 'AvgPool', 'BatchNormalization', 'Concat', 'Conv', 'Conv2D', 'CrossEntropyLoss', 'Exp', 'Gemm', 'LayerNormalization', 'Log', 'Loss', 'MatMul', 'MaxPool', 'Mul', 'Pow', 'PrecisionPolicy', 'ReduceMean', 'ReduceSum', 'Relu', 'Reshape', 'Softmax', 'Sqrt', 'Transpose', 'bf16', 'bfloat16', 'compute_dtype', 'current_loss_scale', 'float16', 'float32', 'fp16_loss_scale', 'fp32', 'int8', 'output_dtype', 'policy']

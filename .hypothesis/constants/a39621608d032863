@@ -1,0 +1,4 @@
+# file: /home/viuren/VELTRUMNISCEND/ZENITH/zenith/api.py
+# hypothesis_version: 6.148.7
+
+[1e-06, ':', 'JAX is not installed', 'cpu', 'cuda', 'flax', 'fp32', 'jax', 'keras', 'onnx', 'pytorch', 'rocm', 'tensorflow', 'torch', 'tpu']

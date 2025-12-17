@@ -1,0 +1,4 @@
+# file: /home/viuren/VELTRUMNISCEND/ZENITH/zenith/optimization/layout_pass.py
+# hypothesis_version: 6.148.7
+
+['AvgPool', 'Conv', 'Conv2D', 'MaxPool', 'NC', 'NCHW', 'NHWC', 'UNKNOWN', 'channels_first', 'channels_last', 'cpu_avx2', 'cpu_neon', 'cuda', 'data_format', 'layouts_converted', 'openvino', 'tensorrt', 'transposes_inserted']

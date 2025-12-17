@@ -1,0 +1,4 @@
+# file: /home/viuren/VELTRUMNISCEND/ZENITH/zenith/optimization/fusion_pass.py
+# hypothesis_version: 6.148.7
+
+[1e-05, 1.0, 'Add', 'BN', 'BatchNorm', 'BatchNormalization', 'Conv', 'Conv2D', 'Gemm', 'MatMul', 'ReLU', 'Relu', 'alpha', 'beta', 'bn_epsilon', 'conv_bn', 'conv_bn_relu', 'dilations', 'epsilon', 'fused_bn', 'fused_relu', 'gemm_add', 'group', 'kernel_shape', 'nodes_removed', 'pads', 'patterns_matched', 'strides', 'transA', 'transB']

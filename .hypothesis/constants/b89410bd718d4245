@@ -1,0 +1,4 @@
+# file: /home/viuren/VELTRUMNISCEND/ZENITH/zenith/adapters/tensorflow_adapter.py
+# hypothesis_version: 6.148.7
+
+['.onnx', 'rb', 'save', 'saved_model.pb', 'serving_default', 'signatures', 'tensorflow', 'wb']

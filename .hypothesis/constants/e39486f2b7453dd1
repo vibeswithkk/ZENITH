@@ -1,0 +1,4 @@
+# file: /home/viuren/VELTRUMNISCEND/ZENITH/zenith/optimization/benchmark.py
+# hypothesis_version: 6.148.7
+
+[0.0, 1000000000.0, 100, 256, 512, 1000, '=', 'BENCHMARK RESULTS', 'MatMul', 'backend', 'flops', 'fn', 'input_shape', 'inputs', 'iterations', 'max_time_ms', 'mean_time_ms', 'memory_bytes', 'min_time_ms', 'name', 'numpy', 'numpy_ms', 'operation', 'results', 'shape', 'sizes', 'speedups', 'std_time_ms', 'throughput_gflops', 'unknown', 'w', 'warmup', 'zenith', 'zenith_ms']

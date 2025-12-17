@@ -1,0 +1,4 @@
+# file: /home/viuren/VELTRUMNISCEND/ZENITH/zenith/optimization/profiler.py
+# hypothesis_version: 6.148.7
+
+[0.0, 1000, '\nBy Operation Type:', 'avg_op_duration_ms', 'by_op_type', 'count', 'cpu', 'device', 'duration_ms', 'input_shapes', 'max_op_duration_ms', 'memory_bytes', 'min_op_duration_ms', 'name', 'op_name', 'op_type', 'operation_count', 'operations', 'output_shapes', 'session', 'session_count', 'sessions', 'summary', 'total_duration_ms', 'total_memory_bytes', 'total_ms', 'w']

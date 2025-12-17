@@ -1,0 +1,4 @@
+# file: /home/viuren/VELTRUMNISCEND/ZENITH/zenith/adapters/pytorch_adapter.py
+# hypothesis_version: 6.148.7
+
+['.', 'input', 'output', 'pytorch', 'wb']
