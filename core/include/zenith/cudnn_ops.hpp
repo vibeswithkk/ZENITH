@@ -312,8 +312,16 @@ inline Status conv2d_get_workspace_size(int N, int C_in, int H, int W,
   CUDNN_CHECK(output_desc.set_4d(CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, N, C_out,
                                  H_out, W_out));
 
-  cudnnConvolutionFwdAlgo_t algo =
-      CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM;
+  // Use same algorithm selection as conv2d_forward for consistent workspace
+  cudnnConvolutionFwdAlgo_t algo;
+  int returned_count;
+  cudnnConvolutionFwdAlgoPerf_t perf_results;
+
+  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
+      handle, input_desc.get(), filter_desc.get(), conv_desc.get(),
+      output_desc.get(), 1, &returned_count, &perf_results));
+
+  algo = perf_results.algo;
 
   CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
       handle, input_desc.get(), filter_desc.get(), conv_desc.get(),
