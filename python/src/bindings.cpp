@@ -11,6 +11,7 @@
 #include <zenith/zenith.hpp>
 
 #ifdef ZENITH_HAS_CUDA
+#include "../../core/src/cuda_kernels.cu" // For GELU, LayerNorm, Softmax
 #include <zenith/cublas_ops.hpp>
 #include <zenith/cuda_backend.hpp>
 #include <zenith/gpu_tensor.hpp>
@@ -1289,6 +1290,78 @@ PYBIND11_MODULE(_zenith_core, m) {
         return output;
       },
       py::arg("input"), "Global Average Pool on GPU tensor (zero copy)");
+
+  // ========================================================================
+  // TRANSFORMER/BERT GPU OPERATIONS
+  // These use custom CUDA kernels for Transformer model support
+  // ========================================================================
+
+  // GELU activation on GPU tensor
+  cuda.def(
+      "gelu_gpu",
+      [](zenith::GpuTensor &input) {
+        if (!input.is_valid()) {
+          throw std::runtime_error("gelu_gpu requires valid GpuTensor");
+        }
+
+        zenith::GpuTensor output(input.shape());
+        size_t size = input.numel();
+
+        zenith::cuda_kernels::gelu_f32(input.data_ptr<float>(),
+                                       output.data_ptr<float>(), size);
+        cudaDeviceSynchronize();
+
+        return output;
+      },
+      py::arg("input"), "GELU activation on GPU tensor (zero copy)");
+
+  // LayerNorm on GPU tensor
+  cuda.def(
+      "layernorm_gpu",
+      [](zenith::GpuTensor &input, zenith::GpuTensor &gamma,
+         zenith::GpuTensor &beta, double eps) {
+        if (!input.is_valid() || input.ndim() != 2) {
+          throw std::runtime_error(
+              "layernorm_gpu requires valid 2D GpuTensor [batch, hidden]");
+        }
+
+        int batch = input.dim(0);
+        int hidden = input.dim(1);
+
+        zenith::GpuTensor output(input.shape());
+
+        zenith::cuda_kernels::layernorm_f32(
+            input.data_ptr<float>(), output.data_ptr<float>(),
+            gamma.data_ptr<float>(), beta.data_ptr<float>(), batch, hidden,
+            static_cast<float>(eps));
+        cudaDeviceSynchronize();
+
+        return output;
+      },
+      py::arg("input"), py::arg("gamma"), py::arg("beta"),
+      py::arg("eps") = 1e-5, "LayerNorm on GPU tensor (zero copy)");
+
+  // Softmax on GPU tensor (2D)
+  cuda.def(
+      "softmax_gpu",
+      [](zenith::GpuTensor &input) {
+        if (!input.is_valid() || input.ndim() != 2) {
+          throw std::runtime_error(
+              "softmax_gpu requires valid 2D GpuTensor [batch, seq_len]");
+        }
+
+        int batch = input.dim(0);
+        int len = input.dim(1);
+
+        zenith::GpuTensor output(input.shape());
+
+        zenith::cuda_kernels::softmax_2d_f32(
+            input.data_ptr<float>(), output.data_ptr<float>(), batch, len);
+        cudaDeviceSynchronize();
+
+        return output;
+      },
+      py::arg("input"), "Softmax on GPU tensor (zero copy)");
 
   cuda.def("has_cudnn", []() { return true; });
 #else

@@ -67,6 +67,88 @@ __global__ void leaky_relu_kernel(float *data, size_t size, float alpha) {
   }
 }
 
+/// GELU activation kernel (Gaussian Error Linear Unit)
+/// Uses the tanh approximation: 0.5 * x * (1 + tanh(sqrt(2/π) * (x + 0.044715 *
+/// x³)))
+__global__ void gelu_kernel(const float *input, float *output, size_t size) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < size) {
+    float x = input[idx];
+    // Constants for GELU approximation
+    const float sqrt_2_over_pi = 0.7978845608028654f; // sqrt(2/π)
+    const float coef = 0.044715f;
+
+    float x_cubed = x * x * x;
+    float inner = sqrt_2_over_pi * (x + coef * x_cubed);
+    output[idx] = 0.5f * x * (1.0f + tanhf(inner));
+  }
+}
+
+/// LayerNorm kernel - normalizes last dimension
+/// input: [batch, hidden], output: [batch, hidden]
+/// gamma, beta: [hidden]
+__global__ void layernorm_kernel(const float *input, float *output,
+                                 const float *gamma, const float *beta,
+                                 int batch, int hidden, float eps) {
+  int batch_idx = blockIdx.x;
+
+  if (batch_idx < batch) {
+    const float *in_row = input + batch_idx * hidden;
+    float *out_row = output + batch_idx * hidden;
+
+    // Compute mean
+    float mean = 0.0f;
+    for (int i = 0; i < hidden; ++i) {
+      mean += in_row[i];
+    }
+    mean /= static_cast<float>(hidden);
+
+    // Compute variance
+    float var = 0.0f;
+    for (int i = 0; i < hidden; ++i) {
+      float diff = in_row[i] - mean;
+      var += diff * diff;
+    }
+    var /= static_cast<float>(hidden);
+
+    // Normalize and scale
+    float inv_std = rsqrtf(var + eps);
+    for (int i = threadIdx.x; i < hidden; i += blockDim.x) {
+      float normalized = (in_row[i] - mean) * inv_std;
+      out_row[i] = normalized * gamma[i] + beta[i];
+    }
+  }
+}
+
+/// Softmax kernel for 2D input [batch, seq_len]
+__global__ void softmax_kernel(const float *input, float *output, int batch,
+                               int len) {
+  int batch_idx = blockIdx.x;
+
+  if (batch_idx < batch) {
+    const float *in_row = input + batch_idx * len;
+    float *out_row = output + batch_idx * len;
+
+    // Find max for numerical stability
+    float max_val = -INFINITY;
+    for (int i = 0; i < len; ++i) {
+      max_val = fmaxf(max_val, in_row[i]);
+    }
+
+    // Compute exp(x - max) and sum
+    float sum = 0.0f;
+    for (int i = 0; i < len; ++i) {
+      out_row[i] = expf(in_row[i] - max_val);
+      sum += out_row[i];
+    }
+
+    // Normalize
+    for (int i = threadIdx.x; i < len; i += blockDim.x) {
+      out_row[i] /= sum;
+    }
+  }
+}
+
 /// Element-wise addition kernel: C = A + B
 __global__ void add_kernel(const float *A, const float *B, float *C,
                            size_t size) {
@@ -376,6 +458,29 @@ inline void maxpool2d_f32(const float *input, float *output, int N, int C,
   dim3 grid(div_ceil(W_out, 16), div_ceil(H_out, 16), N * C);
   maxpool2d_kernel<<<grid, block, 0, stream>>>(
       input, output, N, C, H, W, K_h, K_w, stride_h, stride_w, H_out, W_out);
+}
+
+// ============================================================================
+// Transformer/BERT Kernel Wrappers
+// ============================================================================
+
+inline void gelu_f32(const float *input, float *output, size_t size,
+                     cudaStream_t stream = 0) {
+  int blocks = div_ceil(size, BLOCK_SIZE);
+  gelu_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(input, output, size);
+}
+
+inline void layernorm_f32(const float *input, float *output, const float *gamma,
+                          const float *beta, int batch, int hidden, float eps,
+                          cudaStream_t stream = 0) {
+  // One block per batch element
+  layernorm_kernel<<<batch, BLOCK_SIZE, 0, stream>>>(input, output, gamma, beta,
+                                                     batch, hidden, eps);
+}
+
+inline void softmax_2d_f32(const float *input, float *output, int batch,
+                           int len, cudaStream_t stream = 0) {
+  softmax_kernel<<<batch, BLOCK_SIZE, 0, stream>>>(input, output, batch, len);
 }
 
 } // namespace cuda_kernels
