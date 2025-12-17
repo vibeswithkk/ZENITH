@@ -152,9 +152,15 @@ public:
   cudnnStatus_t set_2d(int pad_h, int pad_w, int stride_h, int stride_w,
                        int dilation_h, int dilation_w,
                        cudnnConvolutionMode_t mode, cudnnDataType_t dtype) {
-    return cudnnSetConvolution2dDescriptor(desc_, pad_h, pad_w, stride_h,
-                                           stride_w, dilation_h, dilation_w,
-                                           mode, dtype);
+    cudnnStatus_t status =
+        cudnnSetConvolution2dDescriptor(desc_, pad_h, pad_w, stride_h, stride_w,
+                                        dilation_h, dilation_w, mode, dtype);
+    if (status != CUDNN_STATUS_SUCCESS)
+      return status;
+
+    // Set math type for cuDNN 9+ compatibility
+    // CUDNN_DEFAULT_MATH allows cuDNN to choose appropriate math mode
+    return cudnnSetConvolutionMathType(desc_, CUDNN_DEFAULT_MATH);
   }
 
   cudnnConvolutionDescriptor_t get() const { return desc_; }
