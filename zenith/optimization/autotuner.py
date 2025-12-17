@@ -36,7 +36,8 @@ class TuningConfig:
     def config_hash(self) -> str:
         """Generate unique hash for this configuration."""
         data = f"{self.op_name}_{self.input_shapes}_{self.dtype}_{self.device}"
-        return hashlib.md5(data.encode()).hexdigest()[:16]
+        # MD5 used for cache key only, not for security purposes
+        return hashlib.md5(data.encode(), usedforsecurity=False).hexdigest()[:16]
 
 
 @dataclass

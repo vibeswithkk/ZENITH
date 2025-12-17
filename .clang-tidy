@@ -1,0 +1,43 @@
+---
+# Clang-Tidy Configuration for Zenith C++ Core
+#
+# Based on:
+# - SEI CERT C++ Coding Standard (cert-*)
+# - C++ Core Guidelines (cppcoreguidelines-*)
+# - Performance optimizations (performance-*)
+# - Bug detection (bugprone-*)
+# - Modern C++ practices (modernize-*)
+
+Checks: >
+  cert-*,
+  performance-*,
+  bugprone-*,
+  modernize-*,
+  -modernize-use-trailing-return-type,
+  -modernize-avoid-c-arrays,
+  cppcoreguidelines-*,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-pro-type-reinterpret-cast
+
+WarningsAsErrors: ''
+
+HeaderFilterRegex: '.*'
+
+FormatStyle: file
+
+CheckOptions:
+  - key: modernize-loop-convert.MinConfidence
+    value: confident
+  - key: modernize-pass-by-value.IncludeStyle
+    value: llvm
+  - key: performance-unnecessary-value-param.AllowedTypes
+    value: 'shared_ptr;unique_ptr'
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.FunctionCase
+    value: lower_case
+  - key: readability-identifier-naming.VariableCase
+    value: lower_case
+  - key: bugprone-easily-swappable-parameters.MinimumLength
+    value: 3

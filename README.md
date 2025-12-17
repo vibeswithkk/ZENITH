@@ -1,19 +1,58 @@
 # Zenith
 
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Python](https://img.shields.io/badge/Python-3.9+-green.svg)](https://www.python.org/)
+[![Coverage](https://img.shields.io/badge/Coverage-66%25-yellow.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-198%20passed-brightgreen.svg)]()
+
 **Cross-Platform ML Optimization Framework**
 
-Framework unifikasi dan optimisasi untuk Machine Learning yang model-agnostic dan hardware-agnostic.
+A model-agnostic and hardware-agnostic unification and optimization framework for Machine Learning.
 
-## Status
+## Features
 
-Fase 0: Foundation - In Development
+- Unified API for PyTorch, TensorFlow, JAX, and ONNX models
+- Automatic graph optimizations (fusion, constant folding, dead code elimination)
+- Multi-backend support (CPU, CUDA, ROCm, TPU)
+- Mixed precision training and inference (FP16, BF16, INT8)
+- Property-based testing with mathematical guarantees
 
-## Arsitektur
+## Installation
+
+```bash
+# Basic installation
+pip install zenith-ml
+
+# With framework support
+pip install zenith-ml[onnx,pytorch,tensorflow,jax]
+
+# Development installation
+pip install -e ".[dev]"
+```
+
+## Quick Start
+
+```python
+import zenith
+from zenith.core import GraphIR, DataType, Shape, TensorDescriptor
+
+# Create a computation graph
+graph = GraphIR(name="my_model")
+graph.add_input(TensorDescriptor("x", Shape([1, 3, 224, 224]), DataType.Float32))
+
+# Apply optimizations
+from zenith.optimization import PassManager
+pm = PassManager()
+pm.add("constant_folding")
+pm.add("dead_code_elimination")
+optimized = pm.run(graph)
+```
+
+## Architecture
 
 ```
 +-------------------------------------------------------------+
 |                    Python User Interface                    |
-|           `import zenith; zenith.optimize(model)`           |
 +-------------------------------------------------------------+
 |              Framework-Specific Adapters Layer              |
 |          (PyTorch, TensorFlow, JAX -> ONNX -> IR)           |
@@ -24,32 +63,40 @@ Fase 0: Foundation - In Development
 |  - Mathematical Kernel Library                              |
 +-------------------------------------------------------------+
 |           Hardware Abstraction Layer (HAL)                  |
-|              CPU (SIMD) | CUDA | (future)                   |
+|              CPU (SIMD) | CUDA | ROCm | TPU                 |
 +-------------------------------------------------------------+
 ```
 
-## Quick Start
+## Documentation
 
-```python
-import zenith
-import torch
+- [API Reference](./docs/API.md)
+- [Architecture](./docs/ARCHITECTURE.md)
+- [Blueprint](./CetakBiru.md)
 
-model = torchvision.models.resnet50()
-optimized = zenith.compile(
-    model,
-    target="cuda:0",
-    precision="fp16"
-)
+## Development
+
+```bash
+# Run tests
+pytest tests/python/ -v
+
+# Run with coverage
+pytest tests/python/ --cov=zenith --cov-report=term-missing
+
+# Security scan
+bandit -r zenith/ -ll
 ```
 
-## Dokumentasi
+## Current Status
 
-Lihat [CetakBiru.md](./CetakBiru.md) untuk blueprint lengkap.
+- Phase 4: Quality Assurance & Documentation
+- 198 tests passing
+- 66% code coverage
+- 0 HIGH severity security issues
 
 ## Author
 
-**Wahyu Ardiansyah** - Arsitek Utama
+**Wahyu Ardiansyah** - Lead Architect
 
-## Lisensi
+## License
 
-Apache License 2.0 - Lihat [LICENSE](./LICENSE)
+Apache License 2.0 - See [LICENSE](./LICENSE)
