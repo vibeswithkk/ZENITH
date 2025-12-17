@@ -59,17 +59,21 @@ def zenith_bottleneck(x, block, downsample=None, block_name=""):
     """ResNet Bottleneck block: 1x1 -> 3x3 -> 1x1 with skip connection"""
     identity = x
 
+    # Ensure input is contiguous
+    x = np.ascontiguousarray(x, dtype=np.float32)
+    identity = x
+
     try:
-        # Extract parameters
-        conv1_w = block.conv1.weight.detach().cpu().numpy()
+        # Extract parameters - ensure contiguous
+        conv1_w = np.ascontiguousarray(block.conv1.weight.detach().cpu().numpy())
         bn1_params = extract_bn(block.bn1)
 
-        conv2_w = block.conv2.weight.detach().cpu().numpy()
+        conv2_w = np.ascontiguousarray(block.conv2.weight.detach().cpu().numpy())
         conv2_s = block.conv2.stride[0]
         conv2_p = block.conv2.padding[0]
         bn2_params = extract_bn(block.bn2)
 
-        conv3_w = block.conv3.weight.detach().cpu().numpy()
+        conv3_w = np.ascontiguousarray(block.conv3.weight.detach().cpu().numpy())
         bn3_params = extract_bn(block.bn3)
 
         # Forward pass with debug
