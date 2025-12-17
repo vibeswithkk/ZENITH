@@ -15,12 +15,13 @@ print("=" * 70)
 
 from zenith._zenith_core import cuda
 
-# Setup
+# Setup - use gelu_new (tanh approximation) to match Zenith implementation
 config = BertConfig(
     hidden_size=768,
     num_attention_heads=12,
     intermediate_size=3072,
     num_hidden_layers=1,
+    hidden_act=\"gelu_new\",  # Use tanh approximation like Zenith
 )
 torch_bert = BertModel(config).cuda()
 torch_bert.eval()
