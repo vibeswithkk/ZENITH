@@ -20,9 +20,11 @@ from zenith._zenith_core import cuda
 
 
 def extract_conv(conv_layer):
-    """Extract conv layer parameters"""
-    w = conv_layer.weight.detach().cpu().numpy()
-    b = conv_layer.bias.detach().cpu().numpy() if conv_layer.bias is not None else None
+    """Extract conv layer parameters - all as contiguous arrays"""
+    w = np.ascontiguousarray(conv_layer.weight.detach().cpu().numpy())
+    b = None
+    if conv_layer.bias is not None:
+        b = np.ascontiguousarray(conv_layer.bias.detach().cpu().numpy())
     s = conv_layer.stride[0]
     p = conv_layer.padding[0]
     return w, b, s, p
