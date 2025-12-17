@@ -804,6 +804,282 @@ PYBIND11_MODULE(_zenith_core, m) {
       },
       py::arg("input"), "ReLU activation using cuDNN (4D tensor)");
 
+  // ========================================================================
+  // Conv2D using cuDNN
+  // ========================================================================
+  cuda.def(
+      "conv2d",
+      [](py::array_t<float> input, py::array_t<float> weight,
+         py::object bias_obj, int stride, int padding) {
+        auto buf_in = input.request();
+        auto buf_w = weight.request();
+
+        if (buf_in.ndim != 4 || buf_w.ndim != 4) {
+          throw std::runtime_error("conv2d requires 4D tensors: input "
+                                   "[N,C,H,W], weight [C_out,C_in,K,K]");
+        }
+
+        int N = buf_in.shape[0];
+        int C_in = buf_in.shape[1];
+        int H = buf_in.shape[2];
+        int W = buf_in.shape[3];
+        int C_out = buf_w.shape[0];
+        int K_h = buf_w.shape[2];
+        int K_w = buf_w.shape[3];
+
+        int H_out = (H + 2 * padding - K_h) / stride + 1;
+        int W_out = (W + 2 * padding - K_w) / stride + 1;
+
+        // Allocate device memory
+        float *d_in, *d_w, *d_out, *d_bias = nullptr;
+        size_t in_size = N * C_in * H * W * sizeof(float);
+        size_t w_size = C_out * C_in * K_h * K_w * sizeof(float);
+        size_t out_size = N * C_out * H_out * W_out * sizeof(float);
+
+        cudaMalloc(&d_in, in_size);
+        cudaMalloc(&d_w, w_size);
+        cudaMalloc(&d_out, out_size);
+        cudaMemcpy(d_in, buf_in.ptr, in_size, cudaMemcpyHostToDevice);
+        cudaMemcpy(d_w, buf_w.ptr, w_size, cudaMemcpyHostToDevice);
+
+        // Handle optional bias
+        if (!bias_obj.is_none()) {
+          auto bias = bias_obj.cast<py::array_t<float>>();
+          auto buf_b = bias.request();
+          cudaMalloc(&d_bias, C_out * sizeof(float));
+          cudaMemcpy(d_bias, buf_b.ptr, C_out * sizeof(float),
+                     cudaMemcpyHostToDevice);
+        }
+
+        // Workspace for cuDNN
+        size_t workspace_size = 0;
+        zenith::cudnn::conv2d_get_workspace_size(N, C_in, H, W, C_out, K_h, K_w,
+                                                 stride, stride, padding,
+                                                 padding, &workspace_size);
+        void *workspace = nullptr;
+        if (workspace_size > 0) {
+          cudaMalloc(&workspace, workspace_size);
+        }
+
+        auto status = zenith::cudnn::conv2d_forward(
+            d_in, d_w, d_bias, d_out, N, C_in, H, W, C_out, K_h, K_w, stride,
+            stride, padding, padding, workspace, workspace_size);
+
+        auto result = py::array_t<float>({N, C_out, H_out, W_out});
+        auto buf_out = result.request();
+        cudaMemcpy(buf_out.ptr, d_out, out_size, cudaMemcpyDeviceToHost);
+
+        cudaFree(d_in);
+        cudaFree(d_w);
+        cudaFree(d_out);
+        if (d_bias)
+          cudaFree(d_bias);
+        if (workspace)
+          cudaFree(workspace);
+
+        if (!status.ok()) {
+          throw std::runtime_error("cuDNN conv2d failed: " + status.message());
+        }
+        return result;
+      },
+      py::arg("input"), py::arg("weight"), py::arg("bias") = py::none(),
+      py::arg("stride") = 1, py::arg("padding") = 0,
+      "2D Convolution using cuDNN");
+
+  // ========================================================================
+  // BatchNorm using cuDNN
+  // ========================================================================
+  cuda.def(
+      "batch_norm",
+      [](py::array_t<float> input, py::array_t<float> gamma,
+         py::array_t<float> beta, py::array_t<float> mean,
+         py::array_t<float> var, double epsilon) {
+        auto buf_in = input.request();
+
+        if (buf_in.ndim != 4) {
+          throw std::runtime_error("batch_norm requires 4D tensor [N,C,H,W]");
+        }
+
+        int N = buf_in.shape[0];
+        int C = buf_in.shape[1];
+        int H = buf_in.shape[2];
+        int W = buf_in.shape[3];
+        size_t size = N * C * H * W * sizeof(float);
+
+        float *d_in, *d_out, *d_gamma, *d_beta, *d_mean, *d_var;
+        cudaMalloc(&d_in, size);
+        cudaMalloc(&d_out, size);
+        cudaMalloc(&d_gamma, C * sizeof(float));
+        cudaMalloc(&d_beta, C * sizeof(float));
+        cudaMalloc(&d_mean, C * sizeof(float));
+        cudaMalloc(&d_var, C * sizeof(float));
+
+        cudaMemcpy(d_in, buf_in.ptr, size, cudaMemcpyHostToDevice);
+        cudaMemcpy(d_gamma, gamma.request().ptr, C * sizeof(float),
+                   cudaMemcpyHostToDevice);
+        cudaMemcpy(d_beta, beta.request().ptr, C * sizeof(float),
+                   cudaMemcpyHostToDevice);
+        cudaMemcpy(d_mean, mean.request().ptr, C * sizeof(float),
+                   cudaMemcpyHostToDevice);
+        cudaMemcpy(d_var, var.request().ptr, C * sizeof(float),
+                   cudaMemcpyHostToDevice);
+
+        auto status = zenith::cudnn::batchnorm_forward_inference(
+            d_in, d_out, d_gamma, d_beta, d_mean, d_var, N, C, H, W, epsilon);
+
+        auto result = py::array_t<float>(buf_in.shape);
+        auto buf_out = result.request();
+        cudaMemcpy(buf_out.ptr, d_out, size, cudaMemcpyDeviceToHost);
+
+        cudaFree(d_in);
+        cudaFree(d_out);
+        cudaFree(d_gamma);
+        cudaFree(d_beta);
+        cudaFree(d_mean);
+        cudaFree(d_var);
+
+        if (!status.ok()) {
+          throw std::runtime_error("cuDNN batch_norm failed: " +
+                                   status.message());
+        }
+        return result;
+      },
+      py::arg("input"), py::arg("gamma"), py::arg("beta"), py::arg("mean"),
+      py::arg("var"), py::arg("epsilon") = 1e-5,
+      "Batch Normalization using cuDNN (inference mode)");
+
+  // ========================================================================
+  // MaxPool2D using cuDNN
+  // ========================================================================
+  cuda.def(
+      "maxpool2d",
+      [](py::array_t<float> input, int kernel_size, int stride, int padding) {
+        auto buf = input.request();
+
+        if (buf.ndim != 4) {
+          throw std::runtime_error("maxpool2d requires 4D tensor [N,C,H,W]");
+        }
+
+        int N = buf.shape[0];
+        int C = buf.shape[1];
+        int H = buf.shape[2];
+        int W = buf.shape[3];
+        int H_out = (H + 2 * padding - kernel_size) / stride + 1;
+        int W_out = (W + 2 * padding - kernel_size) / stride + 1;
+
+        float *d_in, *d_out;
+        size_t in_size = N * C * H * W * sizeof(float);
+        size_t out_size = N * C * H_out * W_out * sizeof(float);
+        cudaMalloc(&d_in, in_size);
+        cudaMalloc(&d_out, out_size);
+        cudaMemcpy(d_in, buf.ptr, in_size, cudaMemcpyHostToDevice);
+
+        auto status = zenith::cudnn::maxpool2d_forward(
+            d_in, d_out, N, C, H, W, kernel_size, kernel_size, stride, stride,
+            padding, padding);
+
+        auto result = py::array_t<float>({N, C, H_out, W_out});
+        auto buf_out = result.request();
+        cudaMemcpy(buf_out.ptr, d_out, out_size, cudaMemcpyDeviceToHost);
+
+        cudaFree(d_in);
+        cudaFree(d_out);
+
+        if (!status.ok()) {
+          throw std::runtime_error("cuDNN maxpool2d failed: " +
+                                   status.message());
+        }
+        return result;
+      },
+      py::arg("input"), py::arg("kernel_size") = 2, py::arg("stride") = 2,
+      py::arg("padding") = 0, "Max Pooling 2D using cuDNN");
+
+  // ========================================================================
+  // GlobalAvgPool using cuDNN
+  // ========================================================================
+  cuda.def(
+      "global_avgpool",
+      [](py::array_t<float> input) {
+        auto buf = input.request();
+
+        if (buf.ndim != 4) {
+          throw std::runtime_error(
+              "global_avgpool requires 4D tensor [N,C,H,W]");
+        }
+
+        int N = buf.shape[0];
+        int C = buf.shape[1];
+        int H = buf.shape[2];
+        int W = buf.shape[3];
+
+        float *d_in, *d_out;
+        size_t in_size = N * C * H * W * sizeof(float);
+        size_t out_size = N * C * sizeof(float); // H_out=1, W_out=1
+        cudaMalloc(&d_in, in_size);
+        cudaMalloc(&d_out, out_size);
+        cudaMemcpy(d_in, buf.ptr, in_size, cudaMemcpyHostToDevice);
+
+        auto status =
+            zenith::cudnn::global_avgpool_forward(d_in, d_out, N, C, H, W);
+
+        auto result = py::array_t<float>({N, C, 1, 1});
+        auto buf_out = result.request();
+        cudaMemcpy(buf_out.ptr, d_out, out_size, cudaMemcpyDeviceToHost);
+
+        cudaFree(d_in);
+        cudaFree(d_out);
+
+        if (!status.ok()) {
+          throw std::runtime_error("cuDNN global_avgpool failed: " +
+                                   status.message());
+        }
+        return result;
+      },
+      py::arg("input"), "Global Average Pooling using cuDNN");
+
+  // ========================================================================
+  // Element-wise Add using cuDNN (for residual connections)
+  // ========================================================================
+  cuda.def(
+      "add",
+      [](py::array_t<float> a, py::array_t<float> b) {
+        auto buf_a = a.request();
+        auto buf_b = b.request();
+
+        if (buf_a.ndim != 4 || buf_b.ndim != 4) {
+          throw std::runtime_error("add requires 4D tensors [N,C,H,W]");
+        }
+
+        int N = buf_a.shape[0];
+        int C = buf_a.shape[1];
+        int H = buf_a.shape[2];
+        int W = buf_a.shape[3];
+        size_t size = N * C * H * W * sizeof(float);
+
+        float *d_a, *d_b, *d_out;
+        cudaMalloc(&d_a, size);
+        cudaMalloc(&d_b, size);
+        cudaMalloc(&d_out, size);
+        cudaMemcpy(d_a, buf_a.ptr, size, cudaMemcpyHostToDevice);
+        cudaMemcpy(d_b, buf_b.ptr, size, cudaMemcpyHostToDevice);
+
+        auto status = zenith::cudnn::add_tensors(d_a, d_b, d_out, N, C, H, W);
+
+        auto result = py::array_t<float>(buf_a.shape);
+        auto buf_out = result.request();
+        cudaMemcpy(buf_out.ptr, d_out, size, cudaMemcpyDeviceToHost);
+
+        cudaFree(d_a);
+        cudaFree(d_b);
+        cudaFree(d_out);
+
+        if (!status.ok()) {
+          throw std::runtime_error("cuDNN add failed: " + status.message());
+        }
+        return result;
+      },
+      py::arg("a"), py::arg("b"), "Element-wise Add using cuDNN");
+
   cuda.def("has_cudnn", []() { return true; });
 #else
   cuda.def("has_cudnn", []() { return false; });
