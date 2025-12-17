@@ -41,7 +41,10 @@ if(ZENITH_ENABLE_CUDA)
     enable_language(CUDA)
     find_package(CUDAToolkit REQUIRED)
     
-    list(APPEND ZENITH_CORE_SOURCES src/cuda_kernels.cu)
+    list(APPEND ZENITH_CORE_SOURCES 
+        src/cuda_kernels.cu
+        src/transformer_kernels.cu
+    )
     
     # Export CUDA variables to parent scope for python bindings
     set(CUDA_cudart_LIBRARY ${CUDAToolkit_LIBRARY_DIR}/libcudart.so CACHE FILEPATH "CUDA runtime lib")

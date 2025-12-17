@@ -513,6 +513,78 @@ inline Status batchnorm_forward_inference(const float *input, float *output,
 }
 
 // ============================================================================
+// Global Average Pooling (reduces H,W to 1,1)
+// ============================================================================
+
+/// Global Average Pooling - reduces spatial dimensions to 1x1
+/// @param input Input tensor [N, C, H, W]
+/// @param output Output tensor [N, C, 1, 1]
+inline Status global_avgpool_forward(const float *input, float *output, int N,
+                                     int C, int H, int W) {
+  // Global Average Pool uses kernel size = spatial size
+  return avgpool2d_forward(input, output, N, C, H, W, H, W, 1, 1, 0, 0);
+}
+
+// ============================================================================
+// Element-wise Operations (for residual connections)
+// ============================================================================
+
+/// Element-wise Add using cuDNN (for residual connections)
+/// @param a First tensor [N, C, H, W]
+/// @param b Second tensor [N, C, H, W]
+/// @param output Output tensor [N, C, H, W]
+inline Status add_tensors(const float *a, const float *b, float *output, int N,
+                          int C, int H, int W) {
+  cudnnHandle_t handle = CudnnHandle::instance().get();
+  if (!handle) {
+    return Status::Error(StatusCode::NotFound, "cuDNN not initialized");
+  }
+
+  TensorDesc desc;
+  CUDNN_CHECK(desc.set_4d(CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, N, C, H, W));
+
+  // First copy a to output
+  size_t size = N * C * H * W * sizeof(float);
+  cudaMemcpy(output, a, size, cudaMemcpyDeviceToDevice);
+
+  // Then add b to output using cuDNN
+  float alpha = 1.0f, beta = 1.0f;
+  CUDNN_CHECK(
+      cudnnAddTensor(handle, &alpha, desc.get(), b, &beta, desc.get(), output));
+
+  return Status::Ok();
+}
+
+// ============================================================================
+// Transformer Operations (GELU, LayerNorm)
+// ============================================================================
+
+/// GELU activation (Gaussian Error Linear Unit)
+/// GELU(x) ≈ 0.5 * x * (1 + tanh(sqrt(2/π) * (x + 0.044715 * x^3)))
+/// Note: cuDNN doesn't have native GELU, we use tanh approximation via custom
+/// kernel For production, use a CUDA kernel. This is a placeholder that uses
+/// element-wise ops.
+inline Status gelu_forward(const float *input, float *output, size_t size) {
+  // TODO: Implement custom CUDA kernel for GELU
+  // For now, return not implemented - will add CUDA kernel
+  return Status::Error(StatusCode::NotImplemented,
+                       "GELU requires custom CUDA kernel - use gelu_cuda");
+}
+
+/// Layer Normalization forward
+/// Note: cuDNN 8.0+ has cudnnNormalizationForward but requires specific setup
+/// For BERT-style layer norm, we need custom implementation
+inline Status layernorm_forward(const float *input, float *output,
+                                const float *gamma, const float *beta, int N,
+                                int hidden_size, float epsilon) {
+  // TODO: Implement custom CUDA kernel for LayerNorm
+  // cuDNN's batch norm is for conv layers, not sequence/hidden dim
+  return Status::Error(
+      StatusCode::NotImplemented,
+      "LayerNorm requires custom CUDA kernel - use layernorm_cuda");
+}
+
+// ============================================================================
 // Utility Functions
 // ============================================================================
 
