@@ -11,6 +11,7 @@
 #include <zenith/zenith.hpp>
 
 #ifdef ZENITH_HAS_CUDA
+#include <zenith/cublas_attention.hpp> // cuBLAS-based attention
 #include <zenith/cublas_ops.hpp>
 #include <zenith/cuda_backend.hpp>
 #include <zenith/cuda_kernels.hpp>    // For GELU, LayerNorm, Softmax
@@ -1395,6 +1396,34 @@ PYBIND11_MODULE(_zenith_core, m) {
       py::arg("Q"), py::arg("K"), py::arg("V"),
       "FlashAttention on GPU tensors [batch, heads, seq, dim] - memory "
       "efficient");
+
+  // cuBLAS-based attention (high performance)
+  cuda.def(
+      "cublas_attention_gpu",
+      [](zenith::GpuTensor &Q, zenith::GpuTensor &K, zenith::GpuTensor &V) {
+        if (!Q.is_valid() || !K.is_valid() || !V.is_valid()) {
+          throw std::runtime_error(
+              "cublas_attention_gpu requires valid GpuTensors");
+        }
+        if (Q.ndim() != 4) {
+          throw std::runtime_error("cublas_attention_gpu requires 4D tensors");
+        }
+
+        int batch_size = Q.dim(0);
+        int num_heads = Q.dim(1);
+        int seq_len = Q.dim(2);
+        int head_dim = Q.dim(3);
+
+        zenith::GpuTensor output(Q.shape());
+
+        zenith::cublas_attention::cublas_attention_forward_alloc(
+            Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
+            output.data_ptr<float>(), batch_size, num_heads, seq_len, head_dim);
+
+        return output;
+      },
+      py::arg("Q"), py::arg("K"), py::arg("V"),
+      "cuBLAS attention [batch, heads, seq, dim] - use Tensor Cores");
 
   cuda.def("has_cudnn", []() { return true; });
 #else

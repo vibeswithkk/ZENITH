@@ -45,6 +45,7 @@ if(ZENITH_ENABLE_CUDA)
         src/cuda_kernels.cu
         src/transformer_kernels.cu
         src/flash_attention.cu
+        src/cublas_attention.cu
     )
     
     # Export CUDA variables to parent scope for python bindings
