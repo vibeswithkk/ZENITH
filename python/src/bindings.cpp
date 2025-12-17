@@ -1080,6 +1080,216 @@ PYBIND11_MODULE(_zenith_core, m) {
       },
       py::arg("a"), py::arg("b"), "Element-wise Add using cuDNN");
 
+  // ========================================================================
+  // GPU-RESIDENT CNN OPERATIONS (Zero-Copy Pipeline)
+  // These operate directly on GpuTensor without CPU transfers
+  // ========================================================================
+
+  // Conv2D on GPU tensors
+  cuda.def(
+      "conv2d_gpu",
+      [](zenith::GpuTensor &input, zenith::GpuTensor &weight,
+         py::object bias_tensor, int stride, int padding) {
+        if (!input.is_valid() || !weight.is_valid()) {
+          throw std::runtime_error("Invalid input tensors");
+        }
+        if (input.ndim() != 4 || weight.ndim() != 4) {
+          throw std::runtime_error("conv2d_gpu requires 4D tensors");
+        }
+
+        int N = input.dim(0);
+        int C_in = input.dim(1);
+        int H = input.dim(2);
+        int W = input.dim(3);
+        int C_out = weight.dim(0);
+        int K_h = weight.dim(2);
+        int K_w = weight.dim(3);
+
+        int H_out = (H + 2 * padding - K_h) / stride + 1;
+        int W_out = (W + 2 * padding - K_w) / stride + 1;
+
+        // Create output tensor on GPU
+        zenith::GpuTensor output(zenith::Shape({N, C_out, H_out, W_out}));
+
+        // Get workspace
+        size_t workspace_size = 0;
+        zenith::cudnn::conv2d_get_workspace_size(N, C_in, H, W, C_out, K_h, K_w,
+                                                 stride, stride, padding,
+                                                 padding, &workspace_size);
+        void *workspace = nullptr;
+        if (workspace_size > 0) {
+          cudaMalloc(&workspace, workspace_size);
+        }
+
+        // Handle optional bias
+        float *d_bias = nullptr;
+        if (!bias_tensor.is_none()) {
+          auto &bias_gpu = bias_tensor.cast<zenith::GpuTensor &>();
+          d_bias = bias_gpu.data_ptr<float>();
+        }
+
+        auto status = zenith::cudnn::conv2d_forward(
+            input.data_ptr<float>(), weight.data_ptr<float>(), d_bias,
+            output.data_ptr<float>(), N, C_in, H, W, C_out, K_h, K_w, stride,
+            stride, padding, padding, workspace, workspace_size);
+
+        if (workspace)
+          cudaFree(workspace);
+
+        if (!status.ok()) {
+          throw std::runtime_error("cuDNN conv2d_gpu failed: " +
+                                   status.message());
+        }
+        return output;
+      },
+      py::arg("input"), py::arg("weight"), py::arg("bias") = py::none(),
+      py::arg("stride") = 1, py::arg("padding") = 0,
+      "Conv2D on GPU tensors (zero copy)");
+
+  // ReLU on GPU tensor
+  cuda.def(
+      "relu_gpu",
+      [](zenith::GpuTensor &input) {
+        if (!input.is_valid() || input.ndim() != 4) {
+          throw std::runtime_error("relu_gpu requires valid 4D GpuTensor");
+        }
+
+        int N = input.dim(0);
+        int C = input.dim(1);
+        int H = input.dim(2);
+        int W = input.dim(3);
+
+        zenith::GpuTensor output(input.shape());
+
+        auto status = zenith::cudnn::relu_forward(
+            input.data_ptr<float>(), output.data_ptr<float>(), N, C, H, W);
+
+        if (!status.ok()) {
+          throw std::runtime_error("cuDNN relu_gpu failed: " +
+                                   status.message());
+        }
+        return output;
+      },
+      py::arg("input"), "ReLU on GPU tensor (zero copy)");
+
+  // BatchNorm on GPU tensor
+  cuda.def(
+      "batch_norm_gpu",
+      [](zenith::GpuTensor &input, zenith::GpuTensor &gamma,
+         zenith::GpuTensor &beta, zenith::GpuTensor &mean,
+         zenith::GpuTensor &var, double epsilon) {
+        if (!input.is_valid() || input.ndim() != 4) {
+          throw std::runtime_error(
+              "batch_norm_gpu requires valid 4D GpuTensor");
+        }
+
+        int N = input.dim(0);
+        int C = input.dim(1);
+        int H = input.dim(2);
+        int W = input.dim(3);
+
+        zenith::GpuTensor output(input.shape());
+
+        auto status = zenith::cudnn::batchnorm_forward_inference(
+            input.data_ptr<float>(), output.data_ptr<float>(),
+            gamma.data_ptr<float>(), beta.data_ptr<float>(),
+            mean.data_ptr<float>(), var.data_ptr<float>(), N, C, H, W, epsilon);
+
+        if (!status.ok()) {
+          throw std::runtime_error("cuDNN batch_norm_gpu failed: " +
+                                   status.message());
+        }
+        return output;
+      },
+      py::arg("input"), py::arg("gamma"), py::arg("beta"), py::arg("mean"),
+      py::arg("var"), py::arg("epsilon") = 1e-5,
+      "BatchNorm on GPU tensor (zero copy)");
+
+  // MaxPool2D on GPU tensor
+  cuda.def(
+      "maxpool2d_gpu",
+      [](zenith::GpuTensor &input, int kernel_size, int stride, int padding) {
+        if (!input.is_valid() || input.ndim() != 4) {
+          throw std::runtime_error("maxpool2d_gpu requires valid 4D GpuTensor");
+        }
+
+        int N = input.dim(0);
+        int C = input.dim(1);
+        int H = input.dim(2);
+        int W = input.dim(3);
+        int H_out = (H + 2 * padding - kernel_size) / stride + 1;
+        int W_out = (W + 2 * padding - kernel_size) / stride + 1;
+
+        zenith::GpuTensor output(zenith::Shape({N, C, H_out, W_out}));
+
+        auto status = zenith::cudnn::maxpool2d_forward(
+            input.data_ptr<float>(), output.data_ptr<float>(), N, C, H, W,
+            kernel_size, kernel_size, stride, stride, padding, padding);
+
+        if (!status.ok()) {
+          throw std::runtime_error("cuDNN maxpool2d_gpu failed: " +
+                                   status.message());
+        }
+        return output;
+      },
+      py::arg("input"), py::arg("kernel_size") = 2, py::arg("stride") = 2,
+      py::arg("padding") = 0, "MaxPool2D on GPU tensor (zero copy)");
+
+  // Element-wise Add on GPU tensors
+  cuda.def(
+      "add_gpu",
+      [](zenith::GpuTensor &a, zenith::GpuTensor &b) {
+        if (!a.is_valid() || !b.is_valid() || a.ndim() != 4 || b.ndim() != 4) {
+          throw std::runtime_error("add_gpu requires valid 4D GpuTensors");
+        }
+
+        int N = a.dim(0);
+        int C = a.dim(1);
+        int H = a.dim(2);
+        int W = a.dim(3);
+
+        zenith::GpuTensor output(a.shape());
+
+        auto status =
+            zenith::cudnn::add_tensors(a.data_ptr<float>(), b.data_ptr<float>(),
+                                       output.data_ptr<float>(), N, C, H, W);
+
+        if (!status.ok()) {
+          throw std::runtime_error("cuDNN add_gpu failed: " + status.message());
+        }
+        return output;
+      },
+      py::arg("a"), py::arg("b"),
+      "Element-wise Add on GPU tensors (zero copy)");
+
+  // Global Average Pool on GPU tensor
+  cuda.def(
+      "global_avgpool_gpu",
+      [](zenith::GpuTensor &input) {
+        if (!input.is_valid() || input.ndim() != 4) {
+          throw std::runtime_error(
+              "global_avgpool_gpu requires valid 4D GpuTensor");
+        }
+
+        int N = input.dim(0);
+        int C = input.dim(1);
+        int H = input.dim(2);
+        int W = input.dim(3);
+
+        // Output is [N, C, 1, 1]
+        zenith::GpuTensor output(zenith::Shape({N, C, 1, 1}));
+
+        auto status = zenith::cudnn::global_avgpool_forward(
+            input.data_ptr<float>(), output.data_ptr<float>(), N, C, H, W);
+
+        if (!status.ok()) {
+          throw std::runtime_error("cuDNN global_avgpool_gpu failed: " +
+                                   status.message());
+        }
+        return output;
+      },
+      py::arg("input"), "Global Average Pool on GPU tensor (zero copy)");
+
   cuda.def("has_cudnn", []() { return true; });
 #else
   cuda.def("has_cudnn", []() { return false; });
