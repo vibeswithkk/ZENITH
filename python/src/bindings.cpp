@@ -6,8 +6,17 @@
 #include <pybind11/stl.h>
 #include <zenith/backend.hpp>
 #include <zenith/cpu_backend.hpp>
+#include <zenith/dispatcher.hpp>
 #include <zenith/kernels.hpp>
 #include <zenith/zenith.hpp>
+
+#ifdef ZENITH_HAS_CUDA
+#include <zenith/cublas_ops.hpp>
+#include <zenith/cuda_backend.hpp>
+#ifdef ZENITH_HAS_CUDNN
+#include <zenith/cudnn_ops.hpp>
+#endif
+#endif
 
 namespace py = pybind11;
 
@@ -515,4 +524,166 @@ PYBIND11_MODULE(_zenith_core, m) {
 
   kernels.def("get_cpu_info", &kernels_py::get_cpu_info,
               "Get CPU feature information (SSE, AVX, etc.)");
+
+  // ========================================================================
+  // Backend Submodule
+  // ========================================================================
+  auto backends = m.def_submodule("backends", "Hardware backend management");
+
+  backends.def(
+      "list_available",
+      []() {
+        std::vector<std::string> available;
+        available.push_back("cpu"); // Always available
+#ifdef ZENITH_HAS_CUDA
+        if (zenith::cublas::is_cublas_available()) {
+          available.push_back("cuda");
+        }
+#endif
+        return available;
+      },
+      "List all available backends");
+
+  backends.def(
+      "is_cuda_available",
+      []() {
+#ifdef ZENITH_HAS_CUDA
+        return zenith::cublas::is_cublas_available();
+#else
+        return false;
+#endif
+      },
+      "Check if CUDA backend is available");
+
+  backends.def(
+      "is_cudnn_available",
+      []() {
+#ifdef ZENITH_HAS_CUDNN
+        return zenith::cudnn::is_cudnn_available();
+#else
+        return false;
+#endif
+      },
+      "Check if cuDNN is available");
+
+  backends.def(
+      "get_cudnn_version",
+      []() {
+#ifdef ZENITH_HAS_CUDNN
+        return zenith::cudnn::get_cudnn_version();
+#else
+        return 0;
+#endif
+      },
+      "Get cuDNN version number");
+
+  // ========================================================================
+  // CUDA Kernel Submodule (only if compiled with CUDA)
+  // ========================================================================
+#ifdef ZENITH_HAS_CUDA
+  auto cuda = m.def_submodule("cuda", "CUDA accelerated operations");
+
+  cuda.def(
+      "matmul",
+      [](py::array_t<float> A, py::array_t<float> B) {
+        auto buf_a = A.request();
+        auto buf_b = B.request();
+
+        if (buf_a.ndim != 2 || buf_b.ndim != 2) {
+          throw std::runtime_error("matmul requires 2D arrays");
+        }
+
+        int M = buf_a.shape[0];
+        int K = buf_a.shape[1];
+        int K2 = buf_b.shape[0];
+        int N = buf_b.shape[1];
+
+        if (K != K2) {
+          throw std::runtime_error("Inner dimensions do not match");
+        }
+
+        // Allocate device memory
+        float *d_A, *d_B, *d_C;
+        cudaMalloc(&d_A, M * K * sizeof(float));
+        cudaMalloc(&d_B, K * N * sizeof(float));
+        cudaMalloc(&d_C, M * N * sizeof(float));
+
+        // Copy to device
+        cudaMemcpy(d_A, buf_a.ptr, M * K * sizeof(float),
+                   cudaMemcpyHostToDevice);
+        cudaMemcpy(d_B, buf_b.ptr, K * N * sizeof(float),
+                   cudaMemcpyHostToDevice);
+
+        // Call cuBLAS
+        auto status = zenith::cublas::gemm_f32(d_A, d_B, d_C, M, N, K);
+
+        // Allocate output and copy back
+        auto result = py::array_t<float>({M, N});
+        auto buf_c = result.request();
+        cudaMemcpy(buf_c.ptr, d_C, M * N * sizeof(float),
+                   cudaMemcpyDeviceToHost);
+
+        // Free device memory
+        cudaFree(d_A);
+        cudaFree(d_B);
+        cudaFree(d_C);
+
+        if (!status.ok()) {
+          throw std::runtime_error("cuBLAS matmul failed: " + status.message());
+        }
+
+        return result;
+      },
+      py::arg("A"), py::arg("B"), "Matrix multiplication using cuBLAS");
+
+  cuda.def(
+      "is_available", []() { return zenith::cublas::is_cublas_available(); },
+      "Check if CUDA is available");
+
+#ifdef ZENITH_HAS_CUDNN
+  cuda.def(
+      "relu",
+      [](py::array_t<float> input) {
+        auto buf = input.request();
+
+        if (buf.ndim != 4) {
+          throw std::runtime_error("cuDNN relu requires 4D tensor [N,C,H,W]");
+        }
+
+        int N = buf.shape[0];
+        int C = buf.shape[1];
+        int H = buf.shape[2];
+        int W = buf.shape[3];
+
+        // Allocate device memory
+        float *d_in, *d_out;
+        size_t size = N * C * H * W * sizeof(float);
+        cudaMalloc(&d_in, size);
+        cudaMalloc(&d_out, size);
+
+        cudaMemcpy(d_in, buf.ptr, size, cudaMemcpyHostToDevice);
+
+        auto status = zenith::cudnn::relu_forward(d_in, d_out, N, C, H, W);
+
+        auto result = py::array_t<float>(buf.shape);
+        auto out_buf = result.request();
+        cudaMemcpy(out_buf.ptr, d_out, size, cudaMemcpyDeviceToHost);
+
+        cudaFree(d_in);
+        cudaFree(d_out);
+
+        if (!status.ok()) {
+          throw std::runtime_error("cuDNN relu failed: " + status.message());
+        }
+
+        return result;
+      },
+      py::arg("input"), "ReLU activation using cuDNN (4D tensor)");
+
+  cuda.def("has_cudnn", []() { return true; });
+#else
+  cuda.def("has_cudnn", []() { return false; });
+#endif
+
+#endif // ZENITH_HAS_CUDA
 }

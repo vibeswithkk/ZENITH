@@ -11,15 +11,38 @@
 ///
 /// Example:
 ///   #include <zenith/zenith.hpp>
-///   zenith::GraphIR graph("my_model");
-///   graph.add_node(...);
+///   zenith::CompilationSession session;
+///   session.load_onnx("model.onnx");
+///   session.compile();
 
 #include <string>
 
+// Core types and data structures
 #include "zenith/graph_ir.hpp"
 #include "zenith/node.hpp"
 #include "zenith/tensor.hpp"
 #include "zenith/types.hpp"
+
+// Compilation and execution
+#include "zenith/compilation_session.hpp"
+#include "zenith/compiled_artifact.hpp"
+#include "zenith/kernel.hpp"
+#include "zenith/kernel_registry.hpp"
+#include "zenith/op_signature.hpp"
+#include "zenith/target_descriptor.hpp"
+
+// Backend abstraction
+#include "zenith/backend.hpp"
+#include "zenith/dispatcher.hpp"
+
+// CUDA support (conditional)
+#ifdef ZENITH_HAS_CUDA
+#include "zenith/cublas_ops.hpp"
+#include "zenith/cuda_backend.hpp"
+#ifdef ZENITH_HAS_CUDNN
+#include "zenith/cudnn_ops.hpp"
+#endif
+#endif
 
 namespace zenith {
 

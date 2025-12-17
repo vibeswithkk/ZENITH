@@ -12,6 +12,19 @@ pybind11_add_module(_zenith_core
 
 target_link_libraries(_zenith_core PRIVATE zenith::core)
 
+# Link CUDA libraries if enabled
+if(ZENITH_ENABLE_CUDA)
+    target_compile_definitions(_zenith_core PRIVATE ZENITH_HAS_CUDA)
+    target_link_libraries(_zenith_core PRIVATE CUDA::cudart)
+    if(TARGET CUDA::cublas)
+        target_link_libraries(_zenith_core PRIVATE CUDA::cublas)
+    endif()
+    if(CUDNN_LIBRARY)
+        target_compile_definitions(_zenith_core PRIVATE ZENITH_HAS_CUDNN)
+        target_link_libraries(_zenith_core PRIVATE ${CUDNN_LIBRARY})
+    endif()
+endif()
+
 # Set output directory
 set_target_properties(_zenith_core PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python/zenith"

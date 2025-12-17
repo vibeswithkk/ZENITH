@@ -1,60 +1,53 @@
-# Build directory
-build/
-cmake-build-*/
-out/
 
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
 *~
-
-# C++ compiled files
-*.o
-*.obj
-*.so
-*.dylib
-*.dll
-*.a
-*.lib
-*.exe
-
-# Python
-__pycache__/
-*.py[cod]
 *$py.class
+*.a
+build/
+# Build directory
+# C++ compiled files
+CetakBiru.md
+cmake-build-*/
+.coverage
+dist/
+*.dll
+docs/_build/
+# Documentation
+.DS_Store
+*.dylib
+*.egg
 *.egg-info/
 .eggs/
-dist/
-*.egg
-.Python
-venv/
-env/
 .env
-
-# Package managers
-node_modules/
-.npm
-
-# Testing
-.pytest_cache/
-.coverage
+env/
+*.exe
 htmlcov/
-.tox/
-
-# Documentation
-docs/_build/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
+# IDE
+.idea/
+*.lib
 *.log
 logs/
-
-# Temporary
-tmp/
+# Logs
+node_modules/
+.npm
+*.o
+*.obj
+# OS
+out/
+# Package managers
+__pycache__/
+*.py[cod]
+.pytest_cache/
+# Python
+.Python
+*.so
+*.swo
+*.swp
 temp/
+# Temporary
+# Testing
+Thumbs.db
 *.tmp
+tmp/
+.tox/
+venv/
+.vscode/
