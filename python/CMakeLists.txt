@@ -15,10 +15,8 @@ target_link_libraries(_zenith_core PRIVATE zenith::core)
 # Link CUDA libraries if enabled
 if(ZENITH_ENABLE_CUDA)
     target_compile_definitions(_zenith_core PRIVATE ZENITH_HAS_CUDA)
-    target_link_libraries(_zenith_core PRIVATE CUDA::cudart)
-    if(TARGET CUDA::cublas)
-        target_link_libraries(_zenith_core PRIVATE CUDA::cublas)
-    endif()
+    target_include_directories(_zenith_core PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
+    target_link_libraries(_zenith_core PRIVATE ${CUDA_cudart_LIBRARY} ${CUDA_cublas_LIBRARY})
     if(CUDNN_LIBRARY)
         target_compile_definitions(_zenith_core PRIVATE ZENITH_HAS_CUDNN)
         target_link_libraries(_zenith_core PRIVATE ${CUDNN_LIBRARY})
@@ -34,3 +32,4 @@ set_target_properties(_zenith_core PROPERTIES
 install(TARGETS _zenith_core
     LIBRARY DESTINATION lib/python/zenith
 )
+
