@@ -476,6 +476,23 @@ void softmax_2d_f32(const float *input, float *output, int batch, int len) {
   softmax_kernel<<<batch, BLOCK_SIZE>>>(input, output, batch, len);
 }
 
+// Bias add kernel: adds bias[j] to each row output[i, j]
+__global__ void add_bias_kernel(float *output, const float *bias, int M,
+                                int N) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx >= M * N)
+    return;
+
+  int col = idx % N;
+  output[idx] += bias[col];
+}
+
+void add_bias_f32(float *output, const float *bias, int M, int N) {
+  int total = M * N;
+  int blocks = div_ceil(total, BLOCK_SIZE);
+  add_bias_kernel<<<blocks, BLOCK_SIZE>>>(output, bias, M, N);
+}
+
 } // namespace cuda_kernels
 } // namespace zenith
 

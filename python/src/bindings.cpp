@@ -1343,6 +1343,89 @@ PYBIND11_MODULE(_zenith_core, m) {
       py::arg("input"), py::arg("gamma"), py::arg("beta"),
       py::arg("eps") = 1e-5, "LayerNorm on GPU tensor (zero copy)");
 
+  // GPU Matrix Multiplication using cuBLAS
+  // C = A @ B, A: [M, K], B: [K, N] -> C: [M, N]
+  cuda.def(
+      "matmul_gpu",
+      [](zenith::GpuTensor &A, zenith::GpuTensor &B) {
+        if (!A.is_valid() || !B.is_valid()) {
+          throw std::runtime_error("matmul_gpu requires valid GpuTensors");
+        }
+        if (A.ndim() != 2 || B.ndim() != 2) {
+          throw std::runtime_error("matmul_gpu requires 2D tensors");
+        }
+        if (A.dim(1) != B.dim(0)) {
+          throw std::runtime_error("matmul_gpu dimension mismatch");
+        }
+
+        int M = A.dim(0);
+        int K = A.dim(1);
+        int N = B.dim(1);
+
+        std::vector<int> out_shape = {M, N};
+        zenith::GpuTensor output(out_shape);
+
+        auto status =
+            zenith::cublas::gemm_f32(A.data_ptr<float>(), B.data_ptr<float>(),
+                                     output.data_ptr<float>(), M, N, K);
+
+        if (!status.ok()) {
+          throw std::runtime_error("cuBLAS matmul_gpu failed");
+        }
+
+        return output;
+      },
+      py::arg("A"), py::arg("B"),
+      "GPU matmul using cuBLAS: C[M,N] = A[M,K] @ B[K,N]");
+
+  // GPU Linear layer: Y = X @ W^T + bias
+  // X: [M, K], W: [N, K], bias: [N] -> Y: [M, N]
+  cuda.def(
+      "linear_gpu",
+      [](zenith::GpuTensor &X, zenith::GpuTensor &W, zenith::GpuTensor &bias) {
+        if (!X.is_valid() || !W.is_valid()) {
+          throw std::runtime_error("linear_gpu requires valid GpuTensors");
+        }
+        if (X.ndim() != 2 || W.ndim() != 2) {
+          throw std::runtime_error("linear_gpu requires 2D tensors");
+        }
+
+        int M = X.dim(0); // batch*seq
+        int K = X.dim(1); // input features
+        int N = W.dim(0); // output features
+
+        if (W.dim(1) != K) {
+          throw std::runtime_error("linear_gpu: W.dim(1) must match X.dim(1)");
+        }
+
+        std::vector<int> out_shape = {M, N};
+        zenith::GpuTensor output(out_shape);
+
+        // Y = X @ W^T: [M,K] @ [K,N] = [M,N] (W is [N,K], need transpose)
+        auto status = zenith::cublas::gemm_f32(
+            X.data_ptr<float>(), W.data_ptr<float>(), output.data_ptr<float>(),
+            M, N, K, 1.0f, 0.0f, false, true); // trans_b = true for W^T
+
+        if (!status.ok()) {
+          throw std::runtime_error("cuBLAS linear_gpu matmul failed");
+        }
+
+        // Add bias if valid
+        if (bias.is_valid() && bias.dim(0) == N) {
+          // Broadcast add bias to each row
+          int blocks = (M * N + 255) / 256;
+          float *out_ptr = output.data_ptr<float>();
+          const float *bias_ptr = bias.data_ptr<float>();
+          // Simple bias add with kernel
+          zenith::cuda_kernels::add_bias_f32(out_ptr, bias_ptr, M, N);
+          cudaDeviceSynchronize();
+        }
+
+        return output;
+      },
+      py::arg("X"), py::arg("W"), py::arg("bias"),
+      "GPU linear: Y[M,N] = X[M,K] @ W[N,K]^T + bias[N]");
+
   // Softmax on GPU tensor (2D)
   cuda.def(
       "softmax_gpu",

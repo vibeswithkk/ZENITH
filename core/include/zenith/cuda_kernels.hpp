@@ -73,6 +73,9 @@ void layernorm_f32(const float *input, float *output, const float *gamma,
 /// Softmax (2D)
 void softmax_2d_f32(const float *input, float *output, int batch, int len);
 
+/// Add bias: output[i,j] += bias[j] for each row i
+void add_bias_f32(float *output, const float *bias, int M, int N);
+
 } // namespace cuda_kernels
 } // namespace zenith
 
