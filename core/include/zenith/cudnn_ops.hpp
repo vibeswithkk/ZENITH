@@ -254,16 +254,9 @@ inline Status conv2d_forward(const float *input, const float *weight,
   CUDNN_CHECK(output_desc.set_4d(CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, N, C_out,
                                  H_out, W_out));
 
-  // Find best algorithm
-  cudnnConvolutionFwdAlgo_t algo;
-  int returned_count;
-  cudnnConvolutionFwdAlgoPerf_t perf_results;
-
-  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
-      handle, input_desc.get(), filter_desc.get(), conv_desc.get(),
-      output_desc.get(), 1, &returned_count, &perf_results));
-
-  algo = perf_results.algo;
+  // Use IMPLICIT_GEMM algorithm for maximum compatibility
+  // This is slower but more reliable than auto-selecting algorithms
+  cudnnConvolutionFwdAlgo_t algo = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM;
 
   // Perform convolution
   float alpha = 1.0f, beta = 0.0f;
@@ -312,16 +305,8 @@ inline Status conv2d_get_workspace_size(int N, int C_in, int H, int W,
   CUDNN_CHECK(output_desc.set_4d(CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, N, C_out,
                                  H_out, W_out));
 
-  // Use same algorithm selection as conv2d_forward for consistent workspace
-  cudnnConvolutionFwdAlgo_t algo;
-  int returned_count;
-  cudnnConvolutionFwdAlgoPerf_t perf_results;
-
-  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
-      handle, input_desc.get(), filter_desc.get(), conv_desc.get(),
-      output_desc.get(), 1, &returned_count, &perf_results));
-
-  algo = perf_results.algo;
+  // Use same fixed algorithm as conv2d_forward for consistency
+  cudnnConvolutionFwdAlgo_t algo = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM;
 
   CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
       handle, input_desc.get(), filter_desc.get(), conv_desc.get(),
