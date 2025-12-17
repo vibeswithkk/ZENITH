@@ -264,9 +264,10 @@ if __name__ == "__main__":
     test_gpu = cuda.to_gpu(np.ascontiguousarray(test_input))
     gelu_output = cuda.gelu_gpu(test_gpu)
 
-    # Compare with PyTorch GELU
-    torch_gelu = torch.nn.GELU()
-    torch_output = torch_gelu(torch.from_numpy(test_input)).numpy()
+    # Compare with PyTorch GELU (use approximate='tanh' to match Zenith implementation)
+    # Note: PyTorch default GELU uses exact erf, Zenith uses tanh approximation from BERT paper
+    torch_gelu = torch.nn.GELU(approximate="tanh")
+    torch_output = torch_gelu(torch.from_numpy(test_input)).detach().numpy()
     gelu_diff = np.max(np.abs(gelu_output.to_numpy() - torch_output))
     print(
         f"  GELU: max_diff = {gelu_diff:.2e} {'[PASS]' if gelu_diff < 1e-4 else '[FAIL]'}"
@@ -284,7 +285,9 @@ if __name__ == "__main__":
     torch_ln = torch.nn.LayerNorm(768).cuda()
     torch_ln.weight.data.fill_(1.0)
     torch_ln.bias.data.fill_(0.0)
-    torch_ln_output = torch_ln(torch.from_numpy(test_input).cuda()).cpu().numpy()
+    torch_ln_output = (
+        torch_ln(torch.from_numpy(test_input).cuda()).detach().cpu().numpy()
+    )
     ln_diff = np.max(np.abs(ln_output.to_numpy() - torch_ln_output))
     print(
         f"  LayerNorm: max_diff = {ln_diff:.2e} {'[PASS]' if ln_diff < 1e-4 else '[FAIL]'}"
