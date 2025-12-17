@@ -136,7 +136,7 @@ for b in range(batch_size):
         exp_scores = np.exp(attn_scores[b, h] - row_max)
         attn_probs[b, h] = exp_scores / np.sum(exp_scores, axis=-1, keepdims=True)
 
-probs_diff = np.max(np.abs(attn_probs - attn_probs_torch[1].detach().cpu().numpy()))
+probs_diff = np.max(np.abs(attn_probs - attn_probs_torch.detach().cpu().numpy()))
 print(
     f"  Attention probs max_diff: {probs_diff:.2e} {'[PASS]' if probs_diff < 1e-5 else '[FAIL]'}"
 )
