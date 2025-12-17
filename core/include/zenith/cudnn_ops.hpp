@@ -264,9 +264,9 @@ inline Status conv2d_forward(const float *input, const float *weight,
   CUDNN_CHECK(output_desc.set_4d(CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, N, C_out,
                                  H_out, W_out));
 
-  // Use IMPLICIT_GEMM algorithm for maximum compatibility
-  // This is slower but more reliable than auto-selecting algorithms
-  cudnnConvolutionFwdAlgo_t algo = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM;
+  // Use DIRECT algorithm for cuDNN 9 compatibility
+  // This is the most basic algorithm with no workspace requirements
+  cudnnConvolutionFwdAlgo_t algo = CUDNN_CONVOLUTION_FWD_ALGO_DIRECT;
 
   // Perform convolution
   float alpha = 1.0f, beta = 0.0f;
