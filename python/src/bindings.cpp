@@ -1362,7 +1362,7 @@ PYBIND11_MODULE(_zenith_core, m) {
         int K = A.dim(1);
         int N = B.dim(1);
 
-        std::vector<int> out_shape = {M, N};
+        zenith::Shape out_shape({M, N});
         zenith::GpuTensor output(out_shape);
 
         auto status =
@@ -1398,7 +1398,7 @@ PYBIND11_MODULE(_zenith_core, m) {
           throw std::runtime_error("linear_gpu: W.dim(1) must match X.dim(1)");
         }
 
-        std::vector<int> out_shape = {M, N};
+        zenith::Shape out_shape({M, N});
         zenith::GpuTensor output(out_shape);
 
         // Y = X @ W^T: [M,K] @ [K,N] = [M,N] (W is [N,K], need transpose)
