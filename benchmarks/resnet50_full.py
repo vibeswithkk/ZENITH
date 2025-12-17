@@ -29,12 +29,12 @@ def extract_conv(conv_layer):
 
 
 def extract_bn(bn_layer):
-    """Extract batch norm parameters"""
+    """Extract batch norm parameters - all as contiguous arrays"""
     return (
-        bn_layer.weight.detach().cpu().numpy(),
-        bn_layer.bias.detach().cpu().numpy(),
-        bn_layer.running_mean.detach().cpu().numpy(),
-        bn_layer.running_var.detach().cpu().numpy(),
+        np.ascontiguousarray(bn_layer.weight.detach().cpu().numpy()),
+        np.ascontiguousarray(bn_layer.bias.detach().cpu().numpy()),
+        np.ascontiguousarray(bn_layer.running_mean.detach().cpu().numpy()),
+        np.ascontiguousarray(bn_layer.running_var.detach().cpu().numpy()),
         bn_layer.eps,
     )
 
@@ -114,7 +114,9 @@ def zenith_bottleneck(x, block, downsample=None, block_name=""):
 
         # Downsample if needed (for dimension matching)
         if downsample is not None:
-            ds_conv_w = downsample[0].weight.detach().cpu().numpy()
+            ds_conv_w = np.ascontiguousarray(
+                downsample[0].weight.detach().cpu().numpy()
+            )
             ds_conv_s = downsample[0].stride[0]
             ds_bn_params = extract_bn(downsample[1])
 
