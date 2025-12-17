@@ -152,19 +152,9 @@ public:
   cudnnStatus_t set_2d(int pad_h, int pad_w, int stride_h, int stride_w,
                        int dilation_h, int dilation_w,
                        cudnnConvolutionMode_t mode, cudnnDataType_t dtype) {
-    cudnnStatus_t status =
-        cudnnSetConvolution2dDescriptor(desc_, pad_h, pad_w, stride_h, stride_w,
-                                        dilation_h, dilation_w, mode, dtype);
-    if (status != CUDNN_STATUS_SUCCESS)
-      return status;
-
-    // cuDNN 9+ requires explicit group count setting (1 for standard conv)
-    status = cudnnSetConvolutionGroupCount(desc_, 1);
-    if (status != CUDNN_STATUS_SUCCESS)
-      return status;
-
-    // Set math type for cuDNN 9+ compatibility - FMA is most compatible
-    return cudnnSetConvolutionMathType(desc_, CUDNN_FMA_MATH);
+    return cudnnSetConvolution2dDescriptor(desc_, pad_h, pad_w, stride_h,
+                                           stride_w, dilation_h, dilation_w,
+                                           mode, dtype);
   }
 
   cudnnConvolutionDescriptor_t get() const { return desc_; }
@@ -264,18 +254,16 @@ inline Status conv2d_forward(const float *input, const float *weight,
   CUDNN_CHECK(output_desc.set_4d(CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, N, C_out,
                                  H_out, W_out));
 
-  // Try multiple algorithms in case one fails
-  // WINOGRAD is optimized for 3x3 convolutions
+  // Find best algorithm
   cudnnConvolutionFwdAlgo_t algo;
-  
-  // For 3x3 kernels, use WINOGRAD; otherwise use GEMM
-  if (K_h == 3 && K_w == 3) {
-    algo = CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD;
-  } else if (K_h == 1 && K_w == 1) {
-    algo = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM;
-  } else {
-    algo = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM;
-  }
+  int returned_count;
+  cudnnConvolutionFwdAlgoPerf_t perf_results;
+
+  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
+      handle, input_desc.get(), filter_desc.get(), conv_desc.get(),
+      output_desc.get(), 1, &returned_count, &perf_results));
+
+  algo = perf_results.algo;
 
   // Perform convolution
   float alpha = 1.0f, beta = 0.0f;
@@ -324,8 +312,8 @@ inline Status conv2d_get_workspace_size(int N, int C_in, int H, int W,
   CUDNN_CHECK(output_desc.set_4d(CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, N, C_out,
                                  H_out, W_out));
 
-  // Use same fixed algorithm as conv2d_forward for consistency
-  cudnnConvolutionFwdAlgo_t algo = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM;
+  cudnnConvolutionFwdAlgo_t algo =
+      CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM;
 
   CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
       handle, input_desc.get(), filter_desc.get(), conv_desc.get(),
