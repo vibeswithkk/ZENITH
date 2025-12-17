@@ -158,9 +158,13 @@ public:
     if (status != CUDNN_STATUS_SUCCESS)
       return status;
 
-    // Set math type for cuDNN 9+ compatibility
-    // CUDNN_DEFAULT_MATH allows cuDNN to choose appropriate math mode
-    return cudnnSetConvolutionMathType(desc_, CUDNN_DEFAULT_MATH);
+    // cuDNN 9+ requires explicit group count setting (1 for standard conv)
+    status = cudnnSetConvolutionGroupCount(desc_, 1);
+    if (status != CUDNN_STATUS_SUCCESS)
+      return status;
+
+    // Set math type for cuDNN 9+ compatibility - FMA is most compatible
+    return cudnnSetConvolutionMathType(desc_, CUDNN_FMA_MATH);
   }
 
   cudnnConvolutionDescriptor_t get() const { return desc_; }
