@@ -1937,10 +1937,190 @@ PYBIND11_MODULE(_zenith_core, m) {
       py::arg("Q"), py::arg("K"), py::arg("V"),
       "Full FP16 attention with improved kernel suite");
 
+  // ========================================================================
+  // User-Friendly Convenience Aliases (NumPy Array Interface)
+  // These wrappers accept NumPy arrays directly and return NumPy arrays
+  // ========================================================================
+
+  // GELU activation for NumPy arrays (2D)
+  cuda.def(
+      "gelu",
+      [](py::array_t<float> input) {
+        auto buf = input.request();
+
+        if (buf.ndim != 2) {
+          throw std::runtime_error("gelu requires 2D array [batch, hidden]");
+        }
+
+        int M = buf.shape[0];
+        int N = buf.shape[1];
+        size_t size = M * N;
+
+        float *d_in, *d_out;
+        cudaMalloc(&d_in, size * sizeof(float));
+        cudaMalloc(&d_out, size * sizeof(float));
+        cudaMemcpy(d_in, buf.ptr, size * sizeof(float), cudaMemcpyHostToDevice);
+
+        zenith::cuda_kernels::gelu_f32(d_in, d_out, size);
+        cudaDeviceSynchronize();
+
+        auto result = py::array_t<float>(buf.shape);
+        auto out_buf = result.request();
+        cudaMemcpy(out_buf.ptr, d_out, size * sizeof(float),
+                   cudaMemcpyDeviceToHost);
+
+        cudaFree(d_in);
+        cudaFree(d_out);
+        return result;
+      },
+      py::arg("input"), "GELU activation using CUDA (2D NumPy array)");
+
+  // LayerNorm for NumPy arrays (2D)
+  cuda.def(
+      "layernorm",
+      [](py::array_t<float> input, py::array_t<float> gamma,
+         py::array_t<float> beta, double eps) {
+        auto buf = input.request();
+
+        if (buf.ndim != 2) {
+          throw std::runtime_error(
+              "layernorm requires 2D array [batch, hidden]");
+        }
+
+        int batch = buf.shape[0];
+        int hidden = buf.shape[1];
+        size_t total = batch * hidden;
+
+        float *d_in, *d_out, *d_gamma, *d_beta;
+        cudaMalloc(&d_in, total * sizeof(float));
+        cudaMalloc(&d_out, total * sizeof(float));
+        cudaMalloc(&d_gamma, hidden * sizeof(float));
+        cudaMalloc(&d_beta, hidden * sizeof(float));
+
+        cudaMemcpy(d_in, buf.ptr, total * sizeof(float),
+                   cudaMemcpyHostToDevice);
+        cudaMemcpy(d_gamma, gamma.request().ptr, hidden * sizeof(float),
+                   cudaMemcpyHostToDevice);
+        cudaMemcpy(d_beta, beta.request().ptr, hidden * sizeof(float),
+                   cudaMemcpyHostToDevice);
+
+        zenith::cuda_kernels::layernorm_f32(d_in, d_out, d_gamma, d_beta, batch,
+                                            hidden, static_cast<float>(eps));
+        cudaDeviceSynchronize();
+
+        auto result = py::array_t<float>(buf.shape);
+        auto out_buf = result.request();
+        cudaMemcpy(out_buf.ptr, d_out, total * sizeof(float),
+                   cudaMemcpyDeviceToHost);
+
+        cudaFree(d_in);
+        cudaFree(d_out);
+        cudaFree(d_gamma);
+        cudaFree(d_beta);
+        return result;
+      },
+      py::arg("input"), py::arg("gamma"), py::arg("beta"),
+      py::arg("eps") = 1e-5, "LayerNorm using CUDA (2D NumPy array)");
+
+  // Softmax for NumPy arrays (2D)
+  cuda.def(
+      "softmax",
+      [](py::array_t<float> input) {
+        auto buf = input.request();
+
+        if (buf.ndim != 2) {
+          throw std::runtime_error(
+              "softmax requires 2D array [batch, seq_len]");
+        }
+
+        int batch = buf.shape[0];
+        int len = buf.shape[1];
+        size_t total = batch * len;
+
+        float *d_in, *d_out;
+        cudaMalloc(&d_in, total * sizeof(float));
+        cudaMalloc(&d_out, total * sizeof(float));
+        cudaMemcpy(d_in, buf.ptr, total * sizeof(float),
+                   cudaMemcpyHostToDevice);
+
+        zenith::cuda_kernels::softmax_2d_f32(d_in, d_out, batch, len);
+        cudaDeviceSynchronize();
+
+        auto result = py::array_t<float>(buf.shape);
+        auto out_buf = result.request();
+        cudaMemcpy(out_buf.ptr, d_out, total * sizeof(float),
+                   cudaMemcpyDeviceToHost);
+
+        cudaFree(d_in);
+        cudaFree(d_out);
+        return result;
+      },
+      py::arg("input"), "Softmax using CUDA (2D NumPy array)");
+
+  // BatchNorm alias (same as batch_norm)
+  cuda.def(
+      "batchnorm",
+      [](py::array_t<float> input, py::array_t<float> gamma,
+         py::array_t<float> beta, py::array_t<float> mean,
+         py::array_t<float> var, double epsilon) {
+        auto buf_in = input.request();
+
+        if (buf_in.ndim != 4) {
+          throw std::runtime_error("batchnorm requires 4D tensor [N,C,H,W]");
+        }
+
+        int N = buf_in.shape[0];
+        int C = buf_in.shape[1];
+        int H = buf_in.shape[2];
+        int W = buf_in.shape[3];
+        size_t size = N * C * H * W * sizeof(float);
+
+        float *d_in, *d_out, *d_gamma, *d_beta, *d_mean, *d_var;
+        cudaMalloc(&d_in, size);
+        cudaMalloc(&d_out, size);
+        cudaMalloc(&d_gamma, C * sizeof(float));
+        cudaMalloc(&d_beta, C * sizeof(float));
+        cudaMalloc(&d_mean, C * sizeof(float));
+        cudaMalloc(&d_var, C * sizeof(float));
+
+        cudaMemcpy(d_in, buf_in.ptr, size, cudaMemcpyHostToDevice);
+        cudaMemcpy(d_gamma, gamma.request().ptr, C * sizeof(float),
+                   cudaMemcpyHostToDevice);
+        cudaMemcpy(d_beta, beta.request().ptr, C * sizeof(float),
+                   cudaMemcpyHostToDevice);
+        cudaMemcpy(d_mean, mean.request().ptr, C * sizeof(float),
+                   cudaMemcpyHostToDevice);
+        cudaMemcpy(d_var, var.request().ptr, C * sizeof(float),
+                   cudaMemcpyHostToDevice);
+
+        auto status = zenith::cudnn::batchnorm_forward_inference(
+            d_in, d_out, d_gamma, d_beta, d_mean, d_var, N, C, H, W, epsilon);
+
+        auto result = py::array_t<float>(buf_in.shape);
+        auto buf_out = result.request();
+        cudaMemcpy(buf_out.ptr, d_out, size, cudaMemcpyDeviceToHost);
+
+        cudaFree(d_in);
+        cudaFree(d_out);
+        cudaFree(d_gamma);
+        cudaFree(d_beta);
+        cudaFree(d_mean);
+        cudaFree(d_var);
+
+        if (!status.ok()) {
+          throw std::runtime_error("cuDNN batchnorm failed: " +
+                                   status.message());
+        }
+        return result;
+      },
+      py::arg("input"), py::arg("gamma"), py::arg("beta"), py::arg("mean"),
+      py::arg("var"), py::arg("epsilon") = 1e-5,
+      "Batch Normalization alias using cuDNN (4D NumPy array)");
+
   cuda.def("has_cudnn", []() { return true; });
 #else
   cuda.def("has_cudnn", []() { return false; });
-#endif
+#endif // ZENITH_HAS_CUDNN
 
 #endif // ZENITH_HAS_CUDA
 
