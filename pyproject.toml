@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zenith-ml"
-version = "0.1.0"
-description = "Cross-Platform ML Optimization Framework"
+version = "0.2.0"
+description = "Cross-Platform ML Optimization Framework with ONNX Interpreter"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 authors = [
@@ -85,7 +85,10 @@ where = ["."]
 include = ["zenith*"]
 
 [tool.setuptools.package-data]
-zenith = ["py.typed"]
+zenith = ["py.typed", "*.so", "*.pyd"]
+
+[project.scripts]
+zenith = "zenith.cli:main"
 
 [tool.black]
 line-length = 88
@@ -120,7 +123,7 @@ select = ["E", "F", "W", "I", "UP", "B", "C4"]
 ignore = ["E501"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "zenith/tests"]
 python_files = ["test_*.py"]
 addopts = "-v --tb=short"
 
