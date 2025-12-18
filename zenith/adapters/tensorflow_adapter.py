@@ -88,7 +88,13 @@ class TensorFlowAdapter(BaseAdapter):
         Returns:
             GraphIR representation of the model.
         """
-        # Try ONNX conversion first
+        # Check if tf2onnx is compatible with this TensorFlow version
+        # tf2onnx has issues with newer TF where models lack output_names
+        if hasattr(model, "save") and not hasattr(model, "output_names"):
+            # Newer TensorFlow/Keras - skip broken tf2onnx path
+            return self._create_graphir_fallback(model, sample_input)
+
+        # Try ONNX conversion
         try:
             onnx_bytes = self.to_onnx(
                 model,
@@ -99,9 +105,8 @@ class TensorFlowAdapter(BaseAdapter):
             )
             onnx_adapter = self._get_onnx_adapter()
             return onnx_adapter.from_bytes(onnx_bytes)
-        except (ImportError, AttributeError, Exception) as e:
+        except Exception:
             # Fallback: create minimal GraphIR directly
-            # This handles tf2onnx incompatibility with newer TF
             return self._create_graphir_fallback(model, sample_input)
 
     def from_saved_model(
