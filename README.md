@@ -21,10 +21,10 @@ A model-agnostic and hardware-agnostic unification and optimization framework fo
 
 ```bash
 # Basic installation
-pip install zenith-ml
+pip install pyzenith
 
 # With framework support
-pip install zenith-ml[onnx,pytorch,tensorflow,jax]
+pip install pyzenith[onnx,pytorch,tensorflow,jax]
 
 # Development installation
 pip install -e ".[dev]"
