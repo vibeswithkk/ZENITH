@@ -9,7 +9,7 @@ import numpy as np
 import time
 
 print("=" * 70)
-print("ZENITH BERT - HYBRID FP16/FP32 ENCODER")
+print("ZENITH BERT - HYBRID FP16/FP32 ENCODER (Optimized)")
 print("=" * 70)
 
 from zenith._zenith_core import cuda
@@ -216,6 +216,7 @@ if __name__ == "__main__":
     # Zenith Hybrid
     t0 = time.perf_counter()
     zenith_out_gpu = zenith_encoder.forward(x_gpu, BATCH_SIZE, SEQ_LEN)
+    cuda.sync()  # Single sync point (optimized - no per-kernel sync)
     zenith_time = (time.perf_counter() - t0) * 1000
 
     zenith_out = zenith_out_gpu.to_numpy().reshape(BATCH_SIZE, SEQ_LEN, HIDDEN_SIZE)
@@ -239,6 +240,7 @@ if __name__ == "__main__":
     for _ in range(50):
         t0 = time.perf_counter()
         _ = zenith_encoder.forward(x_gpu, BATCH_SIZE, SEQ_LEN)
+        cuda.sync()  # Single sync per iteration
         zenith_times.append((time.perf_counter() - t0) * 1000)
 
     # PyTorch timing

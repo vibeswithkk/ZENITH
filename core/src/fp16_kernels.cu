@@ -32,6 +32,20 @@ static cublasHandle_t get_handle() {
   return handle;
 }
 
+// Pre-allocated workspace for attention scores
+// Eliminates cudaMalloc/cudaFree overhead in hot path
+static __half *get_attention_workspace(size_t size_bytes) {
+  static __half *workspace = nullptr;
+  static size_t allocated_size = 0;
+  if (size_bytes > allocated_size) {
+    if (workspace)
+      cudaFree(workspace);
+    cudaMalloc(&workspace, size_bytes);
+    allocated_size = size_bytes;
+  }
+  return workspace;
+}
+
 // ============================================================================
 // FP32 <-> FP16 Conversion
 // ============================================================================
@@ -96,14 +110,14 @@ void linear_fp16(const __half *X, const __half *W, const __half *bias,
                CUBLAS_COMPUTE_32F,       // FP32 accumulation for accuracy!
                CUBLAS_GEMM_DEFAULT_TENSOR_OP);
 
-  cudaDeviceSynchronize();
+  // No sync here - let kernels pipeline
 
   // Add bias if provided
   if (bias != nullptr) {
     int total = M * N;
     int blocks = (total + 255) / 256;
     add_bias_fp16_kernel<<<blocks, 256>>>(Y, bias, M, N);
-    cudaDeviceSynchronize();
+    // No sync here - let kernels pipeline
   }
 }
 
@@ -243,7 +257,7 @@ void layernorm_fp16(const __half *input, __half *output, const __half *gamma,
                     const __half *beta, int batch, int hidden, float eps) {
   layernorm_fp16_kernel<<<batch, 256>>>(input, output, gamma, beta, batch,
                                         hidden, eps);
-  cudaDeviceSynchronize();
+  // No sync here - let kernels pipeline
 }
 
 // ============================================================================
@@ -409,9 +423,9 @@ void attention_fp16(const __half *Q, const __half *K, const __half *V,
   __half alpha_h = __float2half(1.0f);
   __half beta_h = __float2half(0.0f);
 
-  // Allocate workspace for attention scores
-  __half *scores;
-  cudaMalloc(&scores, batch_heads * seq * seq * sizeof(__half));
+  // Use pre-allocated workspace for attention scores (no malloc overhead)
+  size_t scores_size = batch_heads * seq * seq * sizeof(__half);
+  __half *scores = get_attention_workspace(scores_size);
 
   // Step 1: Scores = Q @ K^T (batched)
   long long stride_q = seq * dim;
@@ -437,8 +451,8 @@ void attention_fp16(const __half *Q, const __half *K, const __half *V,
                              dim, stride_o, batch_heads, CUBLAS_COMPUTE_16F,
                              CUBLAS_GEMM_DEFAULT_TENSOR_OP);
 
-  cudaFree(scores);
-  cudaDeviceSynchronize();
+  // Workspace is reused, no free needed
+  // No sync here - sync at Python layer after full forward pass
 }
 
 } // namespace fp16_kernels

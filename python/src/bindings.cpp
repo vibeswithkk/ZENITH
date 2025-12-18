@@ -643,8 +643,14 @@ PYBIND11_MODULE(_zenith_core, m) {
       py::arg("A"), py::arg("B"), "Matrix multiplication using cuBLAS");
 
   cuda.def(
-      "is_available", []() { return zenith::cublas::is_cublas_available(); },
-      "Check if CUDA is available");
+      "is_available", []() {
+    return zenith::cublas::is_cublas_available(); },
+      \"Check if CUDA is available\");
+
+  // Explicit synchronization - call after full forward pass
+  cuda.def(
+      \"sync\", []() { cudaDeviceSynchronize(); },
+      \"Synchronize GPU with CPU (call after forward pass)\");
 
   // ========================================================================
   // GpuTensor Class Bindings
@@ -658,55 +664,55 @@ PYBIND11_MODULE(_zenith_core, m) {
       .def(
           "dim",
           [](zenith::GpuTensor &self, int axis) {
-            if (!self.is_valid()) {
-              throw std::runtime_error("Invalid GpuTensor");
-            }
-            if (axis < 0 || axis >= static_cast<int>(self.shape().rank())) {
-              throw std::runtime_error("Axis out of range");
-            }
-            return self.shape()[axis];
+    if (!self.is_valid()) {
+      throw std::runtime_error("Invalid GpuTensor");
+    }
+    if (axis < 0 || axis >= static_cast<int>(self.shape().rank())) {
+      throw std::runtime_error("Axis out of range");
+    }
+    return self.shape()[axis];
           },
           py::arg("axis"), "Get dimension at axis")
       .def_property_readonly(
           "shape",
           [](zenith::GpuTensor &self) {
-            if (!self.is_valid()) {
-              return py::tuple();
-            }
-            py::list dims;
-            for (size_t i = 0; i < self.shape().rank(); ++i) {
-              dims.append(self.shape()[i]);
-            }
-            return py::tuple(dims);
+    if (!self.is_valid()) {
+      return py::tuple();
+    }
+    py::list dims;
+    for (size_t i = 0; i < self.shape().rank(); ++i) {
+      dims.append(self.shape()[i]);
+    }
+    return py::tuple(dims);
           },
           "Get tensor shape as tuple")
       .def(
           "to_numpy",
           [](zenith::GpuTensor &self) {
-            if (!self.is_valid()) {
-              throw std::runtime_error("Invalid GpuTensor");
-            }
-            std::vector<ssize_t> py_shape;
-            for (size_t i = 0; i < self.shape().rank(); ++i) {
-              py_shape.push_back(self.shape()[i]);
-            }
-            auto result = py::array_t<float>(py_shape);
-            auto buf = result.request();
-            self.to_host(buf.ptr);
-            return result;
+    if (!self.is_valid()) {
+      throw std::runtime_error("Invalid GpuTensor");
+    }
+    std::vector<ssize_t> py_shape;
+    for (size_t i = 0; i < self.shape().rank(); ++i) {
+      py_shape.push_back(self.shape()[i]);
+    }
+    auto result = py::array_t<float>(py_shape);
+    auto buf = result.request();
+    self.to_host(buf.ptr);
+    return result;
           },
           "Copy tensor data from GPU to NumPy array")
       .def("__repr__", [](const zenith::GpuTensor &self) {
-        if (!self.is_valid())
-          return std::string("GpuTensor(invalid)");
-        std::string s = "GpuTensor(shape=[";
-        for (size_t i = 0; i < self.shape().rank(); ++i) {
-          if (i > 0)
-            s += ", ";
-          s += std::to_string(self.shape()[i]);
-        }
-        s += "], device=cuda)";
-        return s;
+    if (!self.is_valid())
+      return std::string("GpuTensor(invalid)");
+    std::string s = "GpuTensor(shape=[";
+    for (size_t i = 0; i < self.shape().rank(); ++i) {
+      if (i > 0)
+        s += ", ";
+      s += std::to_string(self.shape()[i]);
+    }
+    s += "], device=cuda)";
+    return s;
       });
 
   // ========================================================================
@@ -715,24 +721,24 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "to_gpu",
       [](py::array_t<float> arr) {
-        auto buf = arr.request();
-        std::vector<int64_t> dims;
-        for (ssize_t i = 0; i < buf.ndim; ++i) {
-          dims.push_back(buf.shape[i]);
-        }
-        return zenith::GpuTensor::from_host(buf.ptr, zenith::Shape(dims),
-                                            zenith::DataType::Float32);
+    auto buf = arr.request();
+    std::vector<int64_t> dims;
+    for (ssize_t i = 0; i < buf.ndim; ++i) {
+      dims.push_back(buf.shape[i]);
+    }
+    return zenith::GpuTensor::from_host(buf.ptr, zenith::Shape(dims),
+                                        zenith::DataType::Float32);
       },
       py::arg("array"), "Copy NumPy array to GPU tensor");
 
   cuda.def(
       "empty",
       [](py::tuple shape) {
-        std::vector<int64_t> dims;
-        for (auto d : shape) {
-          dims.push_back(py::cast<int64_t>(d));
-        }
-        return zenith::GpuTensor::empty(zenith::Shape(dims));
+    std::vector<int64_t> dims;
+    for (auto d : shape) {
+      dims.push_back(py::cast<int64_t>(d));
+    }
+    return zenith::GpuTensor::empty(zenith::Shape(dims));
       },
       py::arg("shape"), "Create empty GPU tensor");
 
@@ -742,35 +748,34 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "matmul_gpu",
       [](zenith::GpuTensor &A, zenith::GpuTensor &B) {
-        if (!A.is_valid() || !B.is_valid()) {
-          throw std::runtime_error("Invalid input tensors");
-        }
-        if (A.ndim() != 2 || B.ndim() != 2) {
-          throw std::runtime_error("matmul_gpu requires 2D tensors");
-        }
+    if (!A.is_valid() || !B.is_valid()) {
+      throw std::runtime_error("Invalid input tensors");
+    }
+    if (A.ndim() != 2 || B.ndim() != 2) {
+      throw std::runtime_error("matmul_gpu requires 2D tensors");
+    }
 
-        int M = A.dim(0);
-        int K = A.dim(1);
-        int K2 = B.dim(0);
-        int N = B.dim(1);
+    int M = A.dim(0);
+    int K = A.dim(1);
+    int K2 = B.dim(0);
+    int N = B.dim(1);
 
-        if (K != K2) {
-          throw std::runtime_error("Inner dimensions do not match");
-        }
+    if (K != K2) {
+      throw std::runtime_error("Inner dimensions do not match");
+    }
 
-        // Create output tensor on GPU
-        zenith::GpuTensor C(zenith::Shape({M, N}), zenith::DataType::Float32);
+    // Create output tensor on GPU
+    zenith::GpuTensor C(zenith::Shape({M, N}), zenith::DataType::Float32);
 
-        // Call cuBLAS - NO MEMORY COPIES!
-        auto status =
-            zenith::cublas::gemm_f32(A.data_ptr<float>(), B.data_ptr<float>(),
-                                     C.data_ptr<float>(), M, N, K);
+    // Call cuBLAS - NO MEMORY COPIES!
+    auto status = zenith::cublas::gemm_f32(
+        A.data_ptr<float>(), B.data_ptr<float>(), C.data_ptr<float>(), M, N, K);
 
-        if (!status.ok()) {
-          throw std::runtime_error("cuBLAS matmul failed: " + status.message());
-        }
+    if (!status.ok()) {
+      throw std::runtime_error("cuBLAS matmul failed: " + status.message());
+    }
 
-        return C;
+    return C;
       },
       py::arg("A"), py::arg("B"),
       "Matrix multiplication on GPU tensors (zero copy)");
@@ -781,13 +786,13 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "memory_stats",
       []() {
-        auto stats = zenith::get_gpu_memory_stats();
-        py::dict result;
-        result["allocations"] = stats.allocations;
-        result["cache_hits"] = stats.cache_hits;
-        result["cache_returns"] = stats.cache_returns;
-        result["total_allocated"] = stats.total_allocated;
-        return result;
+    auto stats = zenith::get_gpu_memory_stats();
+    py::dict result;
+    result["allocations"] = stats.allocations;
+    result["cache_hits"] = stats.cache_hits;
+    result["cache_returns"] = stats.cache_returns;
+    result["total_allocated"] = stats.total_allocated;
+    return result;
       },
       "Get GPU memory pool statistics");
 
@@ -798,39 +803,39 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "relu",
       [](py::array_t<float> input) {
-        auto buf = input.request();
+    auto buf = input.request();
 
-        if (buf.ndim != 4) {
-          throw std::runtime_error("cuDNN relu requires 4D tensor [N,C,H,W]");
-        }
+    if (buf.ndim != 4) {
+      throw std::runtime_error("cuDNN relu requires 4D tensor [N,C,H,W]");
+    }
 
-        int N = buf.shape[0];
-        int C = buf.shape[1];
-        int H = buf.shape[2];
-        int W = buf.shape[3];
+    int N = buf.shape[0];
+    int C = buf.shape[1];
+    int H = buf.shape[2];
+    int W = buf.shape[3];
 
-        // Allocate device memory
-        float *d_in, *d_out;
-        size_t size = N * C * H * W * sizeof(float);
-        cudaMalloc(&d_in, size);
-        cudaMalloc(&d_out, size);
+    // Allocate device memory
+    float *d_in, *d_out;
+    size_t size = N * C * H * W * sizeof(float);
+    cudaMalloc(&d_in, size);
+    cudaMalloc(&d_out, size);
 
-        cudaMemcpy(d_in, buf.ptr, size, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_in, buf.ptr, size, cudaMemcpyHostToDevice);
 
-        auto status = zenith::cudnn::relu_forward(d_in, d_out, N, C, H, W);
+    auto status = zenith::cudnn::relu_forward(d_in, d_out, N, C, H, W);
 
-        auto result = py::array_t<float>(buf.shape);
-        auto out_buf = result.request();
-        cudaMemcpy(out_buf.ptr, d_out, size, cudaMemcpyDeviceToHost);
+    auto result = py::array_t<float>(buf.shape);
+    auto out_buf = result.request();
+    cudaMemcpy(out_buf.ptr, d_out, size, cudaMemcpyDeviceToHost);
 
-        cudaFree(d_in);
-        cudaFree(d_out);
+    cudaFree(d_in);
+    cudaFree(d_out);
 
-        if (!status.ok()) {
-          throw std::runtime_error("cuDNN relu failed: " + status.message());
-        }
+    if (!status.ok()) {
+      throw std::runtime_error("cuDNN relu failed: " + status.message());
+    }
 
-        return result;
+    return result;
       },
       py::arg("input"), "ReLU activation using cuDNN (4D tensor)");
 
@@ -841,76 +846,76 @@ PYBIND11_MODULE(_zenith_core, m) {
       "conv2d",
       [](py::array_t<float> input, py::array_t<float> weight,
          py::object bias_obj, int stride, int padding) {
-        auto buf_in = input.request();
-        auto buf_w = weight.request();
+    auto buf_in = input.request();
+    auto buf_w = weight.request();
 
-        if (buf_in.ndim != 4 || buf_w.ndim != 4) {
-          throw std::runtime_error("conv2d requires 4D tensors: input "
-                                   "[N,C,H,W], weight [C_out,C_in,K,K]");
-        }
+    if (buf_in.ndim != 4 || buf_w.ndim != 4) {
+      throw std::runtime_error("conv2d requires 4D tensors: input "
+                               "[N,C,H,W], weight [C_out,C_in,K,K]");
+    }
 
-        int N = buf_in.shape[0];
-        int C_in = buf_in.shape[1];
-        int H = buf_in.shape[2];
-        int W = buf_in.shape[3];
-        int C_out = buf_w.shape[0];
-        int K_h = buf_w.shape[2];
-        int K_w = buf_w.shape[3];
+    int N = buf_in.shape[0];
+    int C_in = buf_in.shape[1];
+    int H = buf_in.shape[2];
+    int W = buf_in.shape[3];
+    int C_out = buf_w.shape[0];
+    int K_h = buf_w.shape[2];
+    int K_w = buf_w.shape[3];
 
-        int H_out = (H + 2 * padding - K_h) / stride + 1;
-        int W_out = (W + 2 * padding - K_w) / stride + 1;
+    int H_out = (H + 2 * padding - K_h) / stride + 1;
+    int W_out = (W + 2 * padding - K_w) / stride + 1;
 
-        // Allocate device memory
-        float *d_in, *d_w, *d_out, *d_bias = nullptr;
-        size_t in_size = N * C_in * H * W * sizeof(float);
-        size_t w_size = C_out * C_in * K_h * K_w * sizeof(float);
-        size_t out_size = N * C_out * H_out * W_out * sizeof(float);
+    // Allocate device memory
+    float *d_in, *d_w, *d_out, *d_bias = nullptr;
+    size_t in_size = N * C_in * H * W * sizeof(float);
+    size_t w_size = C_out * C_in * K_h * K_w * sizeof(float);
+    size_t out_size = N * C_out * H_out * W_out * sizeof(float);
 
-        cudaMalloc(&d_in, in_size);
-        cudaMalloc(&d_w, w_size);
-        cudaMalloc(&d_out, out_size);
-        cudaMemcpy(d_in, buf_in.ptr, in_size, cudaMemcpyHostToDevice);
-        cudaMemcpy(d_w, buf_w.ptr, w_size, cudaMemcpyHostToDevice);
+    cudaMalloc(&d_in, in_size);
+    cudaMalloc(&d_w, w_size);
+    cudaMalloc(&d_out, out_size);
+    cudaMemcpy(d_in, buf_in.ptr, in_size, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_w, buf_w.ptr, w_size, cudaMemcpyHostToDevice);
 
-        // Handle optional bias
-        if (!bias_obj.is_none()) {
-          auto bias = bias_obj.cast<py::array_t<float>>();
-          auto buf_b = bias.request();
-          cudaMalloc(&d_bias, C_out * sizeof(float));
-          cudaMemcpy(d_bias, buf_b.ptr, C_out * sizeof(float),
-                     cudaMemcpyHostToDevice);
-        }
+    // Handle optional bias
+    if (!bias_obj.is_none()) {
+      auto bias = bias_obj.cast<py::array_t<float>>();
+      auto buf_b = bias.request();
+      cudaMalloc(&d_bias, C_out * sizeof(float));
+      cudaMemcpy(d_bias, buf_b.ptr, C_out * sizeof(float),
+                 cudaMemcpyHostToDevice);
+    }
 
-        // Workspace for cuDNN
-        size_t workspace_size = 0;
-        zenith::cudnn::conv2d_get_workspace_size(N, C_in, H, W, C_out, K_h, K_w,
-                                                 stride, stride, padding,
-                                                 padding, &workspace_size);
-        void *workspace = nullptr;
-        if (workspace_size > 0) {
-          cudaMalloc(&workspace, workspace_size);
-        }
+    // Workspace for cuDNN
+    size_t workspace_size = 0;
+    zenith::cudnn::conv2d_get_workspace_size(N, C_in, H, W, C_out, K_h, K_w,
+                                             stride, stride, padding, padding,
+                                             &workspace_size);
+    void *workspace = nullptr;
+    if (workspace_size > 0) {
+      cudaMalloc(&workspace, workspace_size);
+    }
 
-        auto status = zenith::cudnn::conv2d_forward(
-            d_in, d_w, d_bias, d_out, N, C_in, H, W, C_out, K_h, K_w, stride,
-            stride, padding, padding, workspace, workspace_size);
+    auto status = zenith::cudnn::conv2d_forward(
+        d_in, d_w, d_bias, d_out, N, C_in, H, W, C_out, K_h, K_w, stride,
+        stride, padding, padding, workspace, workspace_size);
 
-        auto result = py::array_t<float>({N, C_out, H_out, W_out});
-        auto buf_out = result.request();
-        cudaMemcpy(buf_out.ptr, d_out, out_size, cudaMemcpyDeviceToHost);
+    auto result = py::array_t<float>({N, C_out, H_out, W_out});
+    auto buf_out = result.request();
+    cudaMemcpy(buf_out.ptr, d_out, out_size, cudaMemcpyDeviceToHost);
 
-        cudaFree(d_in);
-        cudaFree(d_w);
-        cudaFree(d_out);
-        if (d_bias)
-          cudaFree(d_bias);
-        if (workspace)
-          cudaFree(workspace);
+    cudaFree(d_in);
+    cudaFree(d_w);
+    cudaFree(d_out);
+    if (d_bias)
+      cudaFree(d_bias);
+    if (workspace)
+      cudaFree(workspace);
 
-        if (!status.ok()) {
-          throw std::runtime_error("cuDNN conv2d failed: " + status.message());
-        }
-        return result;
+    if (!status.ok()) {
+      throw std::runtime_error("cuDNN conv2d failed: " + status.message());
+    }
+    return result;
       },
       py::arg("input"), py::arg("weight"), py::arg("bias") = py::none(),
       py::arg("stride") = 1, py::arg("padding") = 0,
@@ -924,55 +929,54 @@ PYBIND11_MODULE(_zenith_core, m) {
       [](py::array_t<float> input, py::array_t<float> gamma,
          py::array_t<float> beta, py::array_t<float> mean,
          py::array_t<float> var, double epsilon) {
-        auto buf_in = input.request();
+    auto buf_in = input.request();
 
-        if (buf_in.ndim != 4) {
-          throw std::runtime_error("batch_norm requires 4D tensor [N,C,H,W]");
-        }
+    if (buf_in.ndim != 4) {
+      throw std::runtime_error("batch_norm requires 4D tensor [N,C,H,W]");
+    }
 
-        int N = buf_in.shape[0];
-        int C = buf_in.shape[1];
-        int H = buf_in.shape[2];
-        int W = buf_in.shape[3];
-        size_t size = N * C * H * W * sizeof(float);
+    int N = buf_in.shape[0];
+    int C = buf_in.shape[1];
+    int H = buf_in.shape[2];
+    int W = buf_in.shape[3];
+    size_t size = N * C * H * W * sizeof(float);
 
-        float *d_in, *d_out, *d_gamma, *d_beta, *d_mean, *d_var;
-        cudaMalloc(&d_in, size);
-        cudaMalloc(&d_out, size);
-        cudaMalloc(&d_gamma, C * sizeof(float));
-        cudaMalloc(&d_beta, C * sizeof(float));
-        cudaMalloc(&d_mean, C * sizeof(float));
-        cudaMalloc(&d_var, C * sizeof(float));
+    float *d_in, *d_out, *d_gamma, *d_beta, *d_mean, *d_var;
+    cudaMalloc(&d_in, size);
+    cudaMalloc(&d_out, size);
+    cudaMalloc(&d_gamma, C * sizeof(float));
+    cudaMalloc(&d_beta, C * sizeof(float));
+    cudaMalloc(&d_mean, C * sizeof(float));
+    cudaMalloc(&d_var, C * sizeof(float));
 
-        cudaMemcpy(d_in, buf_in.ptr, size, cudaMemcpyHostToDevice);
-        cudaMemcpy(d_gamma, gamma.request().ptr, C * sizeof(float),
-                   cudaMemcpyHostToDevice);
-        cudaMemcpy(d_beta, beta.request().ptr, C * sizeof(float),
-                   cudaMemcpyHostToDevice);
-        cudaMemcpy(d_mean, mean.request().ptr, C * sizeof(float),
-                   cudaMemcpyHostToDevice);
-        cudaMemcpy(d_var, var.request().ptr, C * sizeof(float),
-                   cudaMemcpyHostToDevice);
+    cudaMemcpy(d_in, buf_in.ptr, size, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_gamma, gamma.request().ptr, C * sizeof(float),
+               cudaMemcpyHostToDevice);
+    cudaMemcpy(d_beta, beta.request().ptr, C * sizeof(float),
+               cudaMemcpyHostToDevice);
+    cudaMemcpy(d_mean, mean.request().ptr, C * sizeof(float),
+               cudaMemcpyHostToDevice);
+    cudaMemcpy(d_var, var.request().ptr, C * sizeof(float),
+               cudaMemcpyHostToDevice);
 
-        auto status = zenith::cudnn::batchnorm_forward_inference(
-            d_in, d_out, d_gamma, d_beta, d_mean, d_var, N, C, H, W, epsilon);
+    auto status = zenith::cudnn::batchnorm_forward_inference(
+        d_in, d_out, d_gamma, d_beta, d_mean, d_var, N, C, H, W, epsilon);
 
-        auto result = py::array_t<float>(buf_in.shape);
-        auto buf_out = result.request();
-        cudaMemcpy(buf_out.ptr, d_out, size, cudaMemcpyDeviceToHost);
+    auto result = py::array_t<float>(buf_in.shape);
+    auto buf_out = result.request();
+    cudaMemcpy(buf_out.ptr, d_out, size, cudaMemcpyDeviceToHost);
 
-        cudaFree(d_in);
-        cudaFree(d_out);
-        cudaFree(d_gamma);
-        cudaFree(d_beta);
-        cudaFree(d_mean);
-        cudaFree(d_var);
+    cudaFree(d_in);
+    cudaFree(d_out);
+    cudaFree(d_gamma);
+    cudaFree(d_beta);
+    cudaFree(d_mean);
+    cudaFree(d_var);
 
-        if (!status.ok()) {
-          throw std::runtime_error("cuDNN batch_norm failed: " +
-                                   status.message());
-        }
-        return result;
+    if (!status.ok()) {
+      throw std::runtime_error("cuDNN batch_norm failed: " + status.message());
+    }
+    return result;
       },
       py::arg("input"), py::arg("gamma"), py::arg("beta"), py::arg("mean"),
       py::arg("var"), py::arg("epsilon") = 1e-5,
@@ -984,42 +988,41 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "maxpool2d",
       [](py::array_t<float> input, int kernel_size, int stride, int padding) {
-        auto buf = input.request();
+    auto buf = input.request();
 
-        if (buf.ndim != 4) {
-          throw std::runtime_error("maxpool2d requires 4D tensor [N,C,H,W]");
-        }
+    if (buf.ndim != 4) {
+      throw std::runtime_error("maxpool2d requires 4D tensor [N,C,H,W]");
+    }
 
-        int N = buf.shape[0];
-        int C = buf.shape[1];
-        int H = buf.shape[2];
-        int W = buf.shape[3];
-        int H_out = (H + 2 * padding - kernel_size) / stride + 1;
-        int W_out = (W + 2 * padding - kernel_size) / stride + 1;
+    int N = buf.shape[0];
+    int C = buf.shape[1];
+    int H = buf.shape[2];
+    int W = buf.shape[3];
+    int H_out = (H + 2 * padding - kernel_size) / stride + 1;
+    int W_out = (W + 2 * padding - kernel_size) / stride + 1;
 
-        float *d_in, *d_out;
-        size_t in_size = N * C * H * W * sizeof(float);
-        size_t out_size = N * C * H_out * W_out * sizeof(float);
-        cudaMalloc(&d_in, in_size);
-        cudaMalloc(&d_out, out_size);
-        cudaMemcpy(d_in, buf.ptr, in_size, cudaMemcpyHostToDevice);
+    float *d_in, *d_out;
+    size_t in_size = N * C * H * W * sizeof(float);
+    size_t out_size = N * C * H_out * W_out * sizeof(float);
+    cudaMalloc(&d_in, in_size);
+    cudaMalloc(&d_out, out_size);
+    cudaMemcpy(d_in, buf.ptr, in_size, cudaMemcpyHostToDevice);
 
-        auto status = zenith::cudnn::maxpool2d_forward(
-            d_in, d_out, N, C, H, W, kernel_size, kernel_size, stride, stride,
-            padding, padding);
+    auto status = zenith::cudnn::maxpool2d_forward(
+        d_in, d_out, N, C, H, W, kernel_size, kernel_size, stride, stride,
+        padding, padding);
 
-        auto result = py::array_t<float>({N, C, H_out, W_out});
-        auto buf_out = result.request();
-        cudaMemcpy(buf_out.ptr, d_out, out_size, cudaMemcpyDeviceToHost);
+    auto result = py::array_t<float>({N, C, H_out, W_out});
+    auto buf_out = result.request();
+    cudaMemcpy(buf_out.ptr, d_out, out_size, cudaMemcpyDeviceToHost);
 
-        cudaFree(d_in);
-        cudaFree(d_out);
+    cudaFree(d_in);
+    cudaFree(d_out);
 
-        if (!status.ok()) {
-          throw std::runtime_error("cuDNN maxpool2d failed: " +
-                                   status.message());
-        }
-        return result;
+    if (!status.ok()) {
+      throw std::runtime_error("cuDNN maxpool2d failed: " + status.message());
+    }
+    return result;
       },
       py::arg("input"), py::arg("kernel_size") = 2, py::arg("stride") = 2,
       py::arg("padding") = 0, "Max Pooling 2D using cuDNN");
@@ -1030,40 +1033,39 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "global_avgpool",
       [](py::array_t<float> input) {
-        auto buf = input.request();
+    auto buf = input.request();
 
-        if (buf.ndim != 4) {
-          throw std::runtime_error(
-              "global_avgpool requires 4D tensor [N,C,H,W]");
-        }
+    if (buf.ndim != 4) {
+      throw std::runtime_error("global_avgpool requires 4D tensor [N,C,H,W]");
+    }
 
-        int N = buf.shape[0];
-        int C = buf.shape[1];
-        int H = buf.shape[2];
-        int W = buf.shape[3];
+    int N = buf.shape[0];
+    int C = buf.shape[1];
+    int H = buf.shape[2];
+    int W = buf.shape[3];
 
-        float *d_in, *d_out;
-        size_t in_size = N * C * H * W * sizeof(float);
-        size_t out_size = N * C * sizeof(float); // H_out=1, W_out=1
-        cudaMalloc(&d_in, in_size);
-        cudaMalloc(&d_out, out_size);
-        cudaMemcpy(d_in, buf.ptr, in_size, cudaMemcpyHostToDevice);
+    float *d_in, *d_out;
+    size_t in_size = N * C * H * W * sizeof(float);
+    size_t out_size = N * C * sizeof(float); // H_out=1, W_out=1
+    cudaMalloc(&d_in, in_size);
+    cudaMalloc(&d_out, out_size);
+    cudaMemcpy(d_in, buf.ptr, in_size, cudaMemcpyHostToDevice);
 
-        auto status =
-            zenith::cudnn::global_avgpool_forward(d_in, d_out, N, C, H, W);
+    auto status =
+        zenith::cudnn::global_avgpool_forward(d_in, d_out, N, C, H, W);
 
-        auto result = py::array_t<float>({N, C, 1, 1});
-        auto buf_out = result.request();
-        cudaMemcpy(buf_out.ptr, d_out, out_size, cudaMemcpyDeviceToHost);
+    auto result = py::array_t<float>({N, C, 1, 1});
+    auto buf_out = result.request();
+    cudaMemcpy(buf_out.ptr, d_out, out_size, cudaMemcpyDeviceToHost);
 
-        cudaFree(d_in);
-        cudaFree(d_out);
+    cudaFree(d_in);
+    cudaFree(d_out);
 
-        if (!status.ok()) {
-          throw std::runtime_error("cuDNN global_avgpool failed: " +
-                                   status.message());
-        }
-        return result;
+    if (!status.ok()) {
+      throw std::runtime_error("cuDNN global_avgpool failed: " +
+                               status.message());
+    }
+    return result;
       },
       py::arg("input"), "Global Average Pooling using cuDNN");
 
@@ -1073,40 +1075,40 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "add",
       [](py::array_t<float> a, py::array_t<float> b) {
-        auto buf_a = a.request();
-        auto buf_b = b.request();
+    auto buf_a = a.request();
+    auto buf_b = b.request();
 
-        if (buf_a.ndim != 4 || buf_b.ndim != 4) {
-          throw std::runtime_error("add requires 4D tensors [N,C,H,W]");
-        }
+    if (buf_a.ndim != 4 || buf_b.ndim != 4) {
+      throw std::runtime_error("add requires 4D tensors [N,C,H,W]");
+    }
 
-        int N = buf_a.shape[0];
-        int C = buf_a.shape[1];
-        int H = buf_a.shape[2];
-        int W = buf_a.shape[3];
-        size_t size = N * C * H * W * sizeof(float);
+    int N = buf_a.shape[0];
+    int C = buf_a.shape[1];
+    int H = buf_a.shape[2];
+    int W = buf_a.shape[3];
+    size_t size = N * C * H * W * sizeof(float);
 
-        float *d_a, *d_b, *d_out;
-        cudaMalloc(&d_a, size);
-        cudaMalloc(&d_b, size);
-        cudaMalloc(&d_out, size);
-        cudaMemcpy(d_a, buf_a.ptr, size, cudaMemcpyHostToDevice);
-        cudaMemcpy(d_b, buf_b.ptr, size, cudaMemcpyHostToDevice);
+    float *d_a, *d_b, *d_out;
+    cudaMalloc(&d_a, size);
+    cudaMalloc(&d_b, size);
+    cudaMalloc(&d_out, size);
+    cudaMemcpy(d_a, buf_a.ptr, size, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_b, buf_b.ptr, size, cudaMemcpyHostToDevice);
 
-        auto status = zenith::cudnn::add_tensors(d_a, d_b, d_out, N, C, H, W);
+    auto status = zenith::cudnn::add_tensors(d_a, d_b, d_out, N, C, H, W);
 
-        auto result = py::array_t<float>(buf_a.shape);
-        auto buf_out = result.request();
-        cudaMemcpy(buf_out.ptr, d_out, size, cudaMemcpyDeviceToHost);
+    auto result = py::array_t<float>(buf_a.shape);
+    auto buf_out = result.request();
+    cudaMemcpy(buf_out.ptr, d_out, size, cudaMemcpyDeviceToHost);
 
-        cudaFree(d_a);
-        cudaFree(d_b);
-        cudaFree(d_out);
+    cudaFree(d_a);
+    cudaFree(d_b);
+    cudaFree(d_out);
 
-        if (!status.ok()) {
-          throw std::runtime_error("cuDNN add failed: " + status.message());
-        }
-        return result;
+    if (!status.ok()) {
+      throw std::runtime_error("cuDNN add failed: " + status.message());
+    }
+    return result;
       },
       py::arg("a"), py::arg("b"), "Element-wise Add using cuDNN");
 
@@ -1120,57 +1122,56 @@ PYBIND11_MODULE(_zenith_core, m) {
       "conv2d_gpu",
       [](zenith::GpuTensor &input, zenith::GpuTensor &weight,
          py::object bias_tensor, int stride, int padding) {
-        if (!input.is_valid() || !weight.is_valid()) {
-          throw std::runtime_error("Invalid input tensors");
-        }
-        if (input.ndim() != 4 || weight.ndim() != 4) {
-          throw std::runtime_error("conv2d_gpu requires 4D tensors");
-        }
+    if (!input.is_valid() || !weight.is_valid()) {
+      throw std::runtime_error("Invalid input tensors");
+    }
+    if (input.ndim() != 4 || weight.ndim() != 4) {
+      throw std::runtime_error("conv2d_gpu requires 4D tensors");
+    }
 
-        int N = input.dim(0);
-        int C_in = input.dim(1);
-        int H = input.dim(2);
-        int W = input.dim(3);
-        int C_out = weight.dim(0);
-        int K_h = weight.dim(2);
-        int K_w = weight.dim(3);
+    int N = input.dim(0);
+    int C_in = input.dim(1);
+    int H = input.dim(2);
+    int W = input.dim(3);
+    int C_out = weight.dim(0);
+    int K_h = weight.dim(2);
+    int K_w = weight.dim(3);
 
-        int H_out = (H + 2 * padding - K_h) / stride + 1;
-        int W_out = (W + 2 * padding - K_w) / stride + 1;
+    int H_out = (H + 2 * padding - K_h) / stride + 1;
+    int W_out = (W + 2 * padding - K_w) / stride + 1;
 
-        // Create output tensor on GPU
-        zenith::GpuTensor output(zenith::Shape({N, C_out, H_out, W_out}));
+    // Create output tensor on GPU
+    zenith::GpuTensor output(zenith::Shape({N, C_out, H_out, W_out}));
 
-        // Get workspace
-        size_t workspace_size = 0;
-        zenith::cudnn::conv2d_get_workspace_size(N, C_in, H, W, C_out, K_h, K_w,
-                                                 stride, stride, padding,
-                                                 padding, &workspace_size);
-        void *workspace = nullptr;
-        if (workspace_size > 0) {
-          cudaMalloc(&workspace, workspace_size);
-        }
+    // Get workspace
+    size_t workspace_size = 0;
+    zenith::cudnn::conv2d_get_workspace_size(N, C_in, H, W, C_out, K_h, K_w,
+                                             stride, stride, padding, padding,
+                                             &workspace_size);
+    void *workspace = nullptr;
+    if (workspace_size > 0) {
+      cudaMalloc(&workspace, workspace_size);
+    }
 
-        // Handle optional bias
-        float *d_bias = nullptr;
-        if (!bias_tensor.is_none()) {
-          auto &bias_gpu = bias_tensor.cast<zenith::GpuTensor &>();
-          d_bias = bias_gpu.data_ptr<float>();
-        }
+    // Handle optional bias
+    float *d_bias = nullptr;
+    if (!bias_tensor.is_none()) {
+      auto &bias_gpu = bias_tensor.cast<zenith::GpuTensor &>();
+      d_bias = bias_gpu.data_ptr<float>();
+    }
 
-        auto status = zenith::cudnn::conv2d_forward(
-            input.data_ptr<float>(), weight.data_ptr<float>(), d_bias,
-            output.data_ptr<float>(), N, C_in, H, W, C_out, K_h, K_w, stride,
-            stride, padding, padding, workspace, workspace_size);
+    auto status = zenith::cudnn::conv2d_forward(
+        input.data_ptr<float>(), weight.data_ptr<float>(), d_bias,
+        output.data_ptr<float>(), N, C_in, H, W, C_out, K_h, K_w, stride,
+        stride, padding, padding, workspace, workspace_size);
 
-        if (workspace)
-          cudaFree(workspace);
+    if (workspace)
+      cudaFree(workspace);
 
-        if (!status.ok()) {
-          throw std::runtime_error("cuDNN conv2d_gpu failed: " +
-                                   status.message());
-        }
-        return output;
+    if (!status.ok()) {
+      throw std::runtime_error("cuDNN conv2d_gpu failed: " + status.message());
+    }
+    return output;
       },
       py::arg("input"), py::arg("weight"), py::arg("bias") = py::none(),
       py::arg("stride") = 1, py::arg("padding") = 0,
@@ -1180,25 +1181,24 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "relu_gpu",
       [](zenith::GpuTensor &input) {
-        if (!input.is_valid() || input.ndim() != 4) {
-          throw std::runtime_error("relu_gpu requires valid 4D GpuTensor");
-        }
+    if (!input.is_valid() || input.ndim() != 4) {
+      throw std::runtime_error("relu_gpu requires valid 4D GpuTensor");
+    }
 
-        int N = input.dim(0);
-        int C = input.dim(1);
-        int H = input.dim(2);
-        int W = input.dim(3);
+    int N = input.dim(0);
+    int C = input.dim(1);
+    int H = input.dim(2);
+    int W = input.dim(3);
 
-        zenith::GpuTensor output(input.shape());
+    zenith::GpuTensor output(input.shape());
 
-        auto status = zenith::cudnn::relu_forward(
-            input.data_ptr<float>(), output.data_ptr<float>(), N, C, H, W);
+    auto status = zenith::cudnn::relu_forward(
+        input.data_ptr<float>(), output.data_ptr<float>(), N, C, H, W);
 
-        if (!status.ok()) {
-          throw std::runtime_error("cuDNN relu_gpu failed: " +
-                                   status.message());
-        }
-        return output;
+    if (!status.ok()) {
+      throw std::runtime_error("cuDNN relu_gpu failed: " + status.message());
+    }
+    return output;
       },
       py::arg("input"), "ReLU on GPU tensor (zero copy)");
 
@@ -1208,28 +1208,27 @@ PYBIND11_MODULE(_zenith_core, m) {
       [](zenith::GpuTensor &input, zenith::GpuTensor &gamma,
          zenith::GpuTensor &beta, zenith::GpuTensor &mean,
          zenith::GpuTensor &var, double epsilon) {
-        if (!input.is_valid() || input.ndim() != 4) {
-          throw std::runtime_error(
-              "batch_norm_gpu requires valid 4D GpuTensor");
-        }
+    if (!input.is_valid() || input.ndim() != 4) {
+      throw std::runtime_error("batch_norm_gpu requires valid 4D GpuTensor");
+    }
 
-        int N = input.dim(0);
-        int C = input.dim(1);
-        int H = input.dim(2);
-        int W = input.dim(3);
+    int N = input.dim(0);
+    int C = input.dim(1);
+    int H = input.dim(2);
+    int W = input.dim(3);
 
-        zenith::GpuTensor output(input.shape());
+    zenith::GpuTensor output(input.shape());
 
-        auto status = zenith::cudnn::batchnorm_forward_inference(
-            input.data_ptr<float>(), output.data_ptr<float>(),
-            gamma.data_ptr<float>(), beta.data_ptr<float>(),
-            mean.data_ptr<float>(), var.data_ptr<float>(), N, C, H, W, epsilon);
+    auto status = zenith::cudnn::batchnorm_forward_inference(
+        input.data_ptr<float>(), output.data_ptr<float>(),
+        gamma.data_ptr<float>(), beta.data_ptr<float>(), mean.data_ptr<float>(),
+        var.data_ptr<float>(), N, C, H, W, epsilon);
 
-        if (!status.ok()) {
-          throw std::runtime_error("cuDNN batch_norm_gpu failed: " +
-                                   status.message());
-        }
-        return output;
+    if (!status.ok()) {
+      throw std::runtime_error("cuDNN batch_norm_gpu failed: " +
+                               status.message());
+    }
+    return output;
       },
       py::arg("input"), py::arg("gamma"), py::arg("beta"), py::arg("mean"),
       py::arg("var"), py::arg("epsilon") = 1e-5,
@@ -1239,28 +1238,28 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "maxpool2d_gpu",
       [](zenith::GpuTensor &input, int kernel_size, int stride, int padding) {
-        if (!input.is_valid() || input.ndim() != 4) {
-          throw std::runtime_error("maxpool2d_gpu requires valid 4D GpuTensor");
-        }
+    if (!input.is_valid() || input.ndim() != 4) {
+      throw std::runtime_error("maxpool2d_gpu requires valid 4D GpuTensor");
+    }
 
-        int N = input.dim(0);
-        int C = input.dim(1);
-        int H = input.dim(2);
-        int W = input.dim(3);
-        int H_out = (H + 2 * padding - kernel_size) / stride + 1;
-        int W_out = (W + 2 * padding - kernel_size) / stride + 1;
+    int N = input.dim(0);
+    int C = input.dim(1);
+    int H = input.dim(2);
+    int W = input.dim(3);
+    int H_out = (H + 2 * padding - kernel_size) / stride + 1;
+    int W_out = (W + 2 * padding - kernel_size) / stride + 1;
 
-        zenith::GpuTensor output(zenith::Shape({N, C, H_out, W_out}));
+    zenith::GpuTensor output(zenith::Shape({N, C, H_out, W_out}));
 
-        auto status = zenith::cudnn::maxpool2d_forward(
-            input.data_ptr<float>(), output.data_ptr<float>(), N, C, H, W,
-            kernel_size, kernel_size, stride, stride, padding, padding);
+    auto status = zenith::cudnn::maxpool2d_forward(
+        input.data_ptr<float>(), output.data_ptr<float>(), N, C, H, W,
+        kernel_size, kernel_size, stride, stride, padding, padding);
 
-        if (!status.ok()) {
-          throw std::runtime_error("cuDNN maxpool2d_gpu failed: " +
-                                   status.message());
-        }
-        return output;
+    if (!status.ok()) {
+      throw std::runtime_error("cuDNN maxpool2d_gpu failed: " +
+                               status.message());
+    }
+    return output;
       },
       py::arg("input"), py::arg("kernel_size") = 2, py::arg("stride") = 2,
       py::arg("padding") = 0, "MaxPool2D on GPU tensor (zero copy)");
@@ -1269,25 +1268,25 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "add_gpu",
       [](zenith::GpuTensor &a, zenith::GpuTensor &b) {
-        if (!a.is_valid() || !b.is_valid() || a.ndim() != 4 || b.ndim() != 4) {
-          throw std::runtime_error("add_gpu requires valid 4D GpuTensors");
-        }
+    if (!a.is_valid() || !b.is_valid() || a.ndim() != 4 || b.ndim() != 4) {
+      throw std::runtime_error("add_gpu requires valid 4D GpuTensors");
+    }
 
-        int N = a.dim(0);
-        int C = a.dim(1);
-        int H = a.dim(2);
-        int W = a.dim(3);
+    int N = a.dim(0);
+    int C = a.dim(1);
+    int H = a.dim(2);
+    int W = a.dim(3);
 
-        zenith::GpuTensor output(a.shape());
+    zenith::GpuTensor output(a.shape());
 
-        auto status =
-            zenith::cudnn::add_tensors(a.data_ptr<float>(), b.data_ptr<float>(),
-                                       output.data_ptr<float>(), N, C, H, W);
+    auto status =
+        zenith::cudnn::add_tensors(a.data_ptr<float>(), b.data_ptr<float>(),
+                                   output.data_ptr<float>(), N, C, H, W);
 
-        if (!status.ok()) {
-          throw std::runtime_error("cuDNN add_gpu failed: " + status.message());
-        }
-        return output;
+    if (!status.ok()) {
+      throw std::runtime_error("cuDNN add_gpu failed: " + status.message());
+    }
+    return output;
       },
       py::arg("a"), py::arg("b"),
       "Element-wise Add on GPU tensors (zero copy)");
@@ -1296,27 +1295,27 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "global_avgpool_gpu",
       [](zenith::GpuTensor &input) {
-        if (!input.is_valid() || input.ndim() != 4) {
-          throw std::runtime_error(
-              "global_avgpool_gpu requires valid 4D GpuTensor");
-        }
+    if (!input.is_valid() || input.ndim() != 4) {
+      throw std::runtime_error(
+          "global_avgpool_gpu requires valid 4D GpuTensor");
+    }
 
-        int N = input.dim(0);
-        int C = input.dim(1);
-        int H = input.dim(2);
-        int W = input.dim(3);
+    int N = input.dim(0);
+    int C = input.dim(1);
+    int H = input.dim(2);
+    int W = input.dim(3);
 
-        // Output is [N, C, 1, 1]
-        zenith::GpuTensor output(zenith::Shape({N, C, 1, 1}));
+    // Output is [N, C, 1, 1]
+    zenith::GpuTensor output(zenith::Shape({N, C, 1, 1}));
 
-        auto status = zenith::cudnn::global_avgpool_forward(
-            input.data_ptr<float>(), output.data_ptr<float>(), N, C, H, W);
+    auto status = zenith::cudnn::global_avgpool_forward(
+        input.data_ptr<float>(), output.data_ptr<float>(), N, C, H, W);
 
-        if (!status.ok()) {
-          throw std::runtime_error("cuDNN global_avgpool_gpu failed: " +
-                                   status.message());
-        }
-        return output;
+    if (!status.ok()) {
+      throw std::runtime_error("cuDNN global_avgpool_gpu failed: " +
+                               status.message());
+    }
+    return output;
       },
       py::arg("input"), "Global Average Pool on GPU tensor (zero copy)");
 
@@ -1329,18 +1328,18 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "gelu_gpu",
       [](zenith::GpuTensor &input) {
-        if (!input.is_valid()) {
-          throw std::runtime_error("gelu_gpu requires valid GpuTensor");
-        }
+    if (!input.is_valid()) {
+      throw std::runtime_error("gelu_gpu requires valid GpuTensor");
+    }
 
-        zenith::GpuTensor output(input.shape());
-        size_t size = input.numel();
+    zenith::GpuTensor output(input.shape());
+    size_t size = input.numel();
 
-        zenith::cuda_kernels::gelu_f32(input.data_ptr<float>(),
-                                       output.data_ptr<float>(), size);
-        cudaDeviceSynchronize();
+    zenith::cuda_kernels::gelu_f32(input.data_ptr<float>(),
+                                   output.data_ptr<float>(), size);
+    cudaDeviceSynchronize();
 
-        return output;
+    return output;
       },
       py::arg("input"), "GELU activation on GPU tensor (zero copy)");
 
@@ -1349,23 +1348,23 @@ PYBIND11_MODULE(_zenith_core, m) {
       "layernorm_gpu",
       [](zenith::GpuTensor &input, zenith::GpuTensor &gamma,
          zenith::GpuTensor &beta, double eps) {
-        if (!input.is_valid() || input.ndim() != 2) {
-          throw std::runtime_error(
-              "layernorm_gpu requires valid 2D GpuTensor [batch, hidden]");
-        }
+    if (!input.is_valid() || input.ndim() != 2) {
+      throw std::runtime_error(
+          "layernorm_gpu requires valid 2D GpuTensor [batch, hidden]");
+    }
 
-        int batch = input.dim(0);
-        int hidden = input.dim(1);
+    int batch = input.dim(0);
+    int hidden = input.dim(1);
 
-        zenith::GpuTensor output(input.shape());
+    zenith::GpuTensor output(input.shape());
 
-        zenith::cuda_kernels::layernorm_f32(
-            input.data_ptr<float>(), output.data_ptr<float>(),
-            gamma.data_ptr<float>(), beta.data_ptr<float>(), batch, hidden,
-            static_cast<float>(eps));
-        cudaDeviceSynchronize();
+    zenith::cuda_kernels::layernorm_f32(
+        input.data_ptr<float>(), output.data_ptr<float>(),
+        gamma.data_ptr<float>(), beta.data_ptr<float>(), batch, hidden,
+        static_cast<float>(eps));
+    cudaDeviceSynchronize();
 
-        return output;
+    return output;
       },
       py::arg("input"), py::arg("gamma"), py::arg("beta"),
       py::arg("eps") = 1e-5, "LayerNorm on GPU tensor (zero copy)");
@@ -1375,32 +1374,32 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "matmul_gpu",
       [](zenith::GpuTensor &A, zenith::GpuTensor &B) {
-        if (!A.is_valid() || !B.is_valid()) {
-          throw std::runtime_error("matmul_gpu requires valid GpuTensors");
-        }
-        if (A.ndim() != 2 || B.ndim() != 2) {
-          throw std::runtime_error("matmul_gpu requires 2D tensors");
-        }
-        if (A.dim(1) != B.dim(0)) {
-          throw std::runtime_error("matmul_gpu dimension mismatch");
-        }
+    if (!A.is_valid() || !B.is_valid()) {
+      throw std::runtime_error("matmul_gpu requires valid GpuTensors");
+    }
+    if (A.ndim() != 2 || B.ndim() != 2) {
+      throw std::runtime_error("matmul_gpu requires 2D tensors");
+    }
+    if (A.dim(1) != B.dim(0)) {
+      throw std::runtime_error("matmul_gpu dimension mismatch");
+    }
 
-        int M = A.dim(0);
-        int K = A.dim(1);
-        int N = B.dim(1);
+    int M = A.dim(0);
+    int K = A.dim(1);
+    int N = B.dim(1);
 
-        zenith::Shape out_shape({M, N});
-        zenith::GpuTensor output(out_shape);
+    zenith::Shape out_shape({M, N});
+    zenith::GpuTensor output(out_shape);
 
-        auto status =
-            zenith::cublas::gemm_f32(A.data_ptr<float>(), B.data_ptr<float>(),
-                                     output.data_ptr<float>(), M, N, K);
+    auto status =
+        zenith::cublas::gemm_f32(A.data_ptr<float>(), B.data_ptr<float>(),
+                                 output.data_ptr<float>(), M, N, K);
 
-        if (!status.ok()) {
-          throw std::runtime_error("cuBLAS matmul_gpu failed");
-        }
+    if (!status.ok()) {
+      throw std::runtime_error("cuBLAS matmul_gpu failed");
+    }
 
-        return output;
+    return output;
       },
       py::arg("A"), py::arg("B"),
       "GPU matmul using cuBLAS: C[M,N] = A[M,K] @ B[K,N]");
@@ -1410,45 +1409,45 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "linear_gpu",
       [](zenith::GpuTensor &X, zenith::GpuTensor &W, zenith::GpuTensor &bias) {
-        if (!X.is_valid() || !W.is_valid()) {
-          throw std::runtime_error("linear_gpu requires valid GpuTensors");
-        }
-        if (X.ndim() != 2 || W.ndim() != 2) {
-          throw std::runtime_error("linear_gpu requires 2D tensors");
-        }
+    if (!X.is_valid() || !W.is_valid()) {
+      throw std::runtime_error("linear_gpu requires valid GpuTensors");
+    }
+    if (X.ndim() != 2 || W.ndim() != 2) {
+      throw std::runtime_error("linear_gpu requires 2D tensors");
+    }
 
-        int M = X.dim(0); // batch*seq
-        int K = X.dim(1); // input features
-        int N = W.dim(0); // output features
+    int M = X.dim(0); // batch*seq
+    int K = X.dim(1); // input features
+    int N = W.dim(0); // output features
 
-        if (W.dim(1) != K) {
-          throw std::runtime_error("linear_gpu: W.dim(1) must match X.dim(1)");
-        }
+    if (W.dim(1) != K) {
+      throw std::runtime_error("linear_gpu: W.dim(1) must match X.dim(1)");
+    }
 
-        zenith::Shape out_shape({M, N});
-        zenith::GpuTensor output(out_shape);
+    zenith::Shape out_shape({M, N});
+    zenith::GpuTensor output(out_shape);
 
-        // Y = X @ W^T: [M,K] @ [K,N] = [M,N] (W is [N,K], need transpose)
-        auto status = zenith::cublas::gemm_f32(
-            X.data_ptr<float>(), W.data_ptr<float>(), output.data_ptr<float>(),
-            M, N, K, 1.0f, 0.0f, false, true); // trans_b = true for W^T
+    // Y = X @ W^T: [M,K] @ [K,N] = [M,N] (W is [N,K], need transpose)
+    auto status = zenith::cublas::gemm_f32(
+        X.data_ptr<float>(), W.data_ptr<float>(), output.data_ptr<float>(), M,
+        N, K, 1.0f, 0.0f, false, true); // trans_b = true for W^T
 
-        if (!status.ok()) {
-          throw std::runtime_error("cuBLAS linear_gpu matmul failed");
-        }
+    if (!status.ok()) {
+      throw std::runtime_error("cuBLAS linear_gpu matmul failed");
+    }
 
-        // Add bias if valid
-        if (bias.is_valid() && bias.dim(0) == N) {
-          // Broadcast add bias to each row
-          int blocks = (M * N + 255) / 256;
-          float *out_ptr = output.data_ptr<float>();
-          const float *bias_ptr = bias.data_ptr<float>();
-          // Simple bias add with kernel
-          zenith::cuda_kernels::add_bias_f32(out_ptr, bias_ptr, M, N);
-          cudaDeviceSynchronize();
-        }
+    // Add bias if valid
+    if (bias.is_valid() && bias.dim(0) == N) {
+      // Broadcast add bias to each row
+      int blocks = (M * N + 255) / 256;
+      float *out_ptr = output.data_ptr<float>();
+      const float *bias_ptr = bias.data_ptr<float>();
+      // Simple bias add with kernel
+      zenith::cuda_kernels::add_bias_f32(out_ptr, bias_ptr, M, N);
+      cudaDeviceSynchronize();
+    }
 
-        return output;
+    return output;
       },
       py::arg("X"), py::arg("W"), py::arg("bias"),
       "GPU linear: Y[M,N] = X[M,K] @ W[N,K]^T + bias[N]");
@@ -1457,21 +1456,21 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "softmax_gpu",
       [](zenith::GpuTensor &input) {
-        if (!input.is_valid() || input.ndim() != 2) {
-          throw std::runtime_error(
-              "softmax_gpu requires valid 2D GpuTensor [batch, seq_len]");
-        }
+    if (!input.is_valid() || input.ndim() != 2) {
+      throw std::runtime_error(
+          "softmax_gpu requires valid 2D GpuTensor [batch, seq_len]");
+    }
 
-        int batch = input.dim(0);
-        int len = input.dim(1);
+    int batch = input.dim(0);
+    int len = input.dim(1);
 
-        zenith::GpuTensor output(input.shape());
+    zenith::GpuTensor output(input.shape());
 
-        zenith::cuda_kernels::softmax_2d_f32(
-            input.data_ptr<float>(), output.data_ptr<float>(), batch, len);
-        cudaDeviceSynchronize();
+    zenith::cuda_kernels::softmax_2d_f32(input.data_ptr<float>(),
+                                         output.data_ptr<float>(), batch, len);
+    cudaDeviceSynchronize();
 
-        return output;
+    return output;
       },
       py::arg("input"), "Softmax on GPU tensor (zero copy)");
 
@@ -1480,28 +1479,27 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "flash_attention_gpu",
       [](zenith::GpuTensor &Q, zenith::GpuTensor &K, zenith::GpuTensor &V) {
-        if (!Q.is_valid() || !K.is_valid() || !V.is_valid()) {
-          throw std::runtime_error(
-              "flash_attention_gpu requires valid GpuTensors");
-        }
-        if (Q.ndim() != 4 || K.ndim() != 4 || V.ndim() != 4) {
-          throw std::runtime_error("flash_attention_gpu requires 4D tensors "
-                                   "[batch, heads, seq, dim]");
-        }
+    if (!Q.is_valid() || !K.is_valid() || !V.is_valid()) {
+      throw std::runtime_error("flash_attention_gpu requires valid GpuTensors");
+    }
+    if (Q.ndim() != 4 || K.ndim() != 4 || V.ndim() != 4) {
+      throw std::runtime_error("flash_attention_gpu requires 4D tensors "
+                               "[batch, heads, seq, dim]");
+    }
 
-        int batch_size = Q.dim(0);
-        int num_heads = Q.dim(1);
-        int seq_len = Q.dim(2);
-        int head_dim = Q.dim(3);
+    int batch_size = Q.dim(0);
+    int num_heads = Q.dim(1);
+    int seq_len = Q.dim(2);
+    int head_dim = Q.dim(3);
 
-        zenith::GpuTensor output(Q.shape());
+    zenith::GpuTensor output(Q.shape());
 
-        zenith::flash_attention::flash_attention_forward(
-            Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
-            output.data_ptr<float>(), batch_size, num_heads, seq_len, head_dim);
-        cudaDeviceSynchronize();
+    zenith::flash_attention::flash_attention_forward(
+        Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
+        output.data_ptr<float>(), batch_size, num_heads, seq_len, head_dim);
+    cudaDeviceSynchronize();
 
-        return output;
+    return output;
       },
       py::arg("Q"), py::arg("K"), py::arg("V"),
       "FlashAttention on GPU tensors [batch, heads, seq, dim] - memory "
@@ -1511,26 +1509,26 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "cublas_attention_gpu",
       [](zenith::GpuTensor &Q, zenith::GpuTensor &K, zenith::GpuTensor &V) {
-        if (!Q.is_valid() || !K.is_valid() || !V.is_valid()) {
-          throw std::runtime_error(
-              "cublas_attention_gpu requires valid GpuTensors");
-        }
-        if (Q.ndim() != 4) {
-          throw std::runtime_error("cublas_attention_gpu requires 4D tensors");
-        }
+    if (!Q.is_valid() || !K.is_valid() || !V.is_valid()) {
+      throw std::runtime_error(
+          "cublas_attention_gpu requires valid GpuTensors");
+    }
+    if (Q.ndim() != 4) {
+      throw std::runtime_error("cublas_attention_gpu requires 4D tensors");
+    }
 
-        int batch_size = Q.dim(0);
-        int num_heads = Q.dim(1);
-        int seq_len = Q.dim(2);
-        int head_dim = Q.dim(3);
+    int batch_size = Q.dim(0);
+    int num_heads = Q.dim(1);
+    int seq_len = Q.dim(2);
+    int head_dim = Q.dim(3);
 
-        zenith::GpuTensor output(Q.shape());
+    zenith::GpuTensor output(Q.shape());
 
-        zenith::cublas_attention::cublas_attention_forward_alloc(
-            Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
-            output.data_ptr<float>(), batch_size, num_heads, seq_len, head_dim);
+    zenith::cublas_attention::cublas_attention_forward_alloc(
+        Q.data_ptr<float>(), K.data_ptr<float>(), V.data_ptr<float>(),
+        output.data_ptr<float>(), batch_size, num_heads, seq_len, head_dim);
 
-        return output;
+    return output;
       },
       py::arg("Q"), py::arg("K"), py::arg("V"),
       "cuBLAS attention [batch, heads, seq, dim] - use Tensor Cores");
@@ -1539,21 +1537,20 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "add_2d_gpu",
       [](zenith::GpuTensor &A, zenith::GpuTensor &B) {
-        if (!A.is_valid() || !B.is_valid()) {
-          throw std::runtime_error("add_2d_gpu requires valid GpuTensors");
-        }
-        if (A.ndim() != 2 || B.ndim() != 2) {
-          throw std::runtime_error("add_2d_gpu requires 2D tensors");
-        }
+    if (!A.is_valid() || !B.is_valid()) {
+      throw std::runtime_error("add_2d_gpu requires valid GpuTensors");
+    }
+    if (A.ndim() != 2 || B.ndim() != 2) {
+      throw std::runtime_error("add_2d_gpu requires 2D tensors");
+    }
 
-        int M = A.dim(0);
-        int N = A.dim(1);
+    int M = A.dim(0);
+    int N = A.dim(1);
 
-        zenith::GpuTensor output(A.shape());
-        zenith::cuda_kernels::add_2d_f32(A.data_ptr<float>(),
-                                         B.data_ptr<float>(),
-                                         output.data_ptr<float>(), M, N);
-        return output;
+    zenith::GpuTensor output(A.shape());
+    zenith::cuda_kernels::add_2d_f32(A.data_ptr<float>(), B.data_ptr<float>(),
+                                     output.data_ptr<float>(), M, N);
+    return output;
       },
       py::arg("A"), py::arg("B"), "Element-wise add: C = A + B (2D tensors)");
 
@@ -1562,18 +1559,17 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "transpose_for_attention",
       [](zenith::GpuTensor &input, int batch, int seq, int heads, int dim) {
-        if (!input.is_valid()) {
-          throw std::runtime_error(
-              "transpose_for_attention needs valid tensor");
-        }
+    if (!input.is_valid()) {
+      throw std::runtime_error("transpose_for_attention needs valid tensor");
+    }
 
-        zenith::Shape out_shape({batch, heads, seq, dim});
-        zenith::GpuTensor output(out_shape);
+    zenith::Shape out_shape({batch, heads, seq, dim});
+    zenith::GpuTensor output(out_shape);
 
-        zenith::cuda_kernels::transpose_0213_f32(input.data_ptr<float>(),
-                                                 output.data_ptr<float>(),
-                                                 batch, seq, heads, dim);
-        return output;
+    zenith::cuda_kernels::transpose_0213_f32(input.data_ptr<float>(),
+                                             output.data_ptr<float>(), batch,
+                                             seq, heads, dim);
+    return output;
       },
       py::arg("input"), py::arg("batch"), py::arg("seq"), py::arg("heads"),
       py::arg("dim"), "Transpose [B,S,H,D] -> [B,H,S,D] for attention");
@@ -1582,18 +1578,17 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "transpose_from_attention",
       [](zenith::GpuTensor &input, int batch, int heads, int seq, int dim) {
-        if (!input.is_valid()) {
-          throw std::runtime_error(
-              "transpose_from_attention needs valid tensor");
-        }
+    if (!input.is_valid()) {
+      throw std::runtime_error("transpose_from_attention needs valid tensor");
+    }
 
-        zenith::Shape out_shape({batch, seq, heads, dim});
-        zenith::GpuTensor output(out_shape);
+    zenith::Shape out_shape({batch, seq, heads, dim});
+    zenith::GpuTensor output(out_shape);
 
-        zenith::cuda_kernels::transpose_0213_inv_f32(input.data_ptr<float>(),
-                                                     output.data_ptr<float>(),
-                                                     batch, heads, seq, dim);
-        return output;
+    zenith::cuda_kernels::transpose_0213_inv_f32(input.data_ptr<float>(),
+                                                 output.data_ptr<float>(),
+                                                 batch, heads, seq, dim);
+    return output;
       },
       py::arg("input"), py::arg("batch"), py::arg("heads"), py::arg("seq"),
       py::arg("dim"), "Transpose [B,H,S,D] -> [B,S,H,D] from attention");
@@ -1602,15 +1597,14 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "reshape_4d_to_2d",
       [](zenith::GpuTensor &input, int batch, int seq, int hidden) {
-        if (!input.is_valid()) {
-          throw std::runtime_error("reshape_4d_to_2d needs valid tensor");
-        }
-        zenith::Shape out_shape({batch * seq, hidden});
-        zenith::GpuTensor output(out_shape);
-        cudaMemcpy(output.data_ptr<float>(), input.data_ptr<float>(),
-                   batch * seq * hidden * sizeof(float),
-                   cudaMemcpyDeviceToDevice);
-        return output;
+    if (!input.is_valid()) {
+      throw std::runtime_error("reshape_4d_to_2d needs valid tensor");
+    }
+    zenith::Shape out_shape({batch * seq, hidden});
+    zenith::GpuTensor output(out_shape);
+    cudaMemcpy(output.data_ptr<float>(), input.data_ptr<float>(),
+               batch * seq * hidden * sizeof(float), cudaMemcpyDeviceToDevice);
+    return output;
       },
       py::arg("input"), py::arg("batch"), py::arg("seq"), py::arg("hidden"),
       "Reshape [B,S,H,D] -> [B*S, H*D]");
@@ -1623,50 +1617,47 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "attention_fp16_gpu",
       [](zenith::GpuTensor &Q, zenith::GpuTensor &K, zenith::GpuTensor &V) {
-        if (!Q.is_valid() || !K.is_valid() || !V.is_valid()) {
-          throw std::runtime_error("attention_fp16_gpu requires valid tensors");
-        }
-        if (Q.ndim() != 4) {
-          throw std::runtime_error("attention_fp16_gpu requires 4D tensors");
-        }
+    if (!Q.is_valid() || !K.is_valid() || !V.is_valid()) {
+      throw std::runtime_error("attention_fp16_gpu requires valid tensors");
+    }
+    if (Q.ndim() != 4) {
+      throw std::runtime_error("attention_fp16_gpu requires 4D tensors");
+    }
 
-        int batch = Q.dim(0);
-        int heads = Q.dim(1);
-        int seq = Q.dim(2);
-        int dim = Q.dim(3);
-        int total = batch * heads * seq * dim;
+    int batch = Q.dim(0);
+    int heads = Q.dim(1);
+    int seq = Q.dim(2);
+    int dim = Q.dim(3);
+    int total = batch * heads * seq * dim;
 
-        // Allocate FP16 buffers
-        __half *Q_fp16, *K_fp16, *V_fp16, *O_fp16;
-        cudaMalloc(&Q_fp16, total * sizeof(__half));
-        cudaMalloc(&K_fp16, total * sizeof(__half));
-        cudaMalloc(&V_fp16, total * sizeof(__half));
-        cudaMalloc(&O_fp16, total * sizeof(__half));
+    // Allocate FP16 buffers
+    __half *Q_fp16, *K_fp16, *V_fp16, *O_fp16;
+    cudaMalloc(&Q_fp16, total * sizeof(__half));
+    cudaMalloc(&K_fp16, total * sizeof(__half));
+    cudaMalloc(&V_fp16, total * sizeof(__half));
+    cudaMalloc(&O_fp16, total * sizeof(__half));
 
-        // Convert to FP16
-        zenith::fp16_ops::convert_fp32_to_fp16(Q.data_ptr<float>(), Q_fp16,
-                                               total);
-        zenith::fp16_ops::convert_fp32_to_fp16(K.data_ptr<float>(), K_fp16,
-                                               total);
-        zenith::fp16_ops::convert_fp32_to_fp16(V.data_ptr<float>(), V_fp16,
-                                               total);
+    // Convert to FP16
+    zenith::fp16_ops::convert_fp32_to_fp16(Q.data_ptr<float>(), Q_fp16, total);
+    zenith::fp16_ops::convert_fp32_to_fp16(K.data_ptr<float>(), K_fp16, total);
+    zenith::fp16_ops::convert_fp32_to_fp16(V.data_ptr<float>(), V_fp16, total);
 
-        // Run FP16 attention with Tensor Cores
-        zenith::fp16_ops::attention_fp16_alloc(Q_fp16, K_fp16, V_fp16, O_fp16,
-                                               batch, heads, seq, dim);
+    // Run FP16 attention with Tensor Cores
+    zenith::fp16_ops::attention_fp16_alloc(Q_fp16, K_fp16, V_fp16, O_fp16,
+                                           batch, heads, seq, dim);
 
-        // Create output and convert back to FP32
-        zenith::GpuTensor output(Q.shape());
-        zenith::fp16_ops::convert_fp16_to_fp32(O_fp16, output.data_ptr<float>(),
-                                               total);
+    // Create output and convert back to FP32
+    zenith::GpuTensor output(Q.shape());
+    zenith::fp16_ops::convert_fp16_to_fp32(O_fp16, output.data_ptr<float>(),
+                                           total);
 
-        // Free FP16 buffers
-        cudaFree(Q_fp16);
-        cudaFree(K_fp16);
-        cudaFree(V_fp16);
-        cudaFree(O_fp16);
+    // Free FP16 buffers
+    cudaFree(Q_fp16);
+    cudaFree(K_fp16);
+    cudaFree(V_fp16);
+    cudaFree(O_fp16);
 
-        return output;
+    return output;
       },
       py::arg("Q"), py::arg("K"), py::arg("V"),
       "FP16 attention with Tensor Cores [batch, heads, seq, dim]");
@@ -1679,58 +1670,58 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "linear_fp16_gpu",
       [](zenith::GpuTensor &X, zenith::GpuTensor &W, zenith::GpuTensor &bias) {
-        if (!X.is_valid() || !W.is_valid()) {
-          throw std::runtime_error("linear_fp16_gpu requires valid tensors");
-        }
-        if (X.ndim() != 2 || W.ndim() != 2) {
-          throw std::runtime_error("linear_fp16_gpu requires 2D tensors");
-        }
+    if (!X.is_valid() || !W.is_valid()) {
+      throw std::runtime_error("linear_fp16_gpu requires valid tensors");
+    }
+    if (X.ndim() != 2 || W.ndim() != 2) {
+      throw std::runtime_error("linear_fp16_gpu requires 2D tensors");
+    }
 
-        int M = X.dim(0); // batch * seq
-        int K = X.dim(1); // input features
-        int N = W.dim(0); // output features
+    int M = X.dim(0); // batch * seq
+    int K = X.dim(1); // input features
+    int N = W.dim(0); // output features
 
-        // Allocate FP16 buffers
-        __half *X_fp16, *W_fp16, *Y_fp16, *bias_fp16 = nullptr;
-        int total_x = M * K;
-        int total_w = N * K;
-        int total_y = M * N;
+    // Allocate FP16 buffers
+    __half *X_fp16, *W_fp16, *Y_fp16, *bias_fp16 = nullptr;
+    int total_x = M * K;
+    int total_w = N * K;
+    int total_y = M * N;
 
-        cudaMalloc(&X_fp16, total_x * sizeof(__half));
-        cudaMalloc(&W_fp16, total_w * sizeof(__half));
-        cudaMalloc(&Y_fp16, total_y * sizeof(__half));
+    cudaMalloc(&X_fp16, total_x * sizeof(__half));
+    cudaMalloc(&W_fp16, total_w * sizeof(__half));
+    cudaMalloc(&Y_fp16, total_y * sizeof(__half));
 
-        if (bias.is_valid() && bias.dim(0) == N) {
-          cudaMalloc(&bias_fp16, N * sizeof(__half));
-          zenith::fp16_kernels::convert_f32_to_f16(bias.data_ptr<float>(),
-                                                   bias_fp16, N);
-        }
+    if (bias.is_valid() && bias.dim(0) == N) {
+      cudaMalloc(&bias_fp16, N * sizeof(__half));
+      zenith::fp16_kernels::convert_f32_to_f16(bias.data_ptr<float>(),
+                                               bias_fp16, N);
+    }
 
-        // Convert inputs to FP16
-        zenith::fp16_kernels::convert_f32_to_f16(X.data_ptr<float>(), X_fp16,
-                                                 total_x);
-        zenith::fp16_kernels::convert_f32_to_f16(W.data_ptr<float>(), W_fp16,
-                                                 total_w);
+    // Convert inputs to FP16
+    zenith::fp16_kernels::convert_f32_to_f16(X.data_ptr<float>(), X_fp16,
+                                             total_x);
+    zenith::fp16_kernels::convert_f32_to_f16(W.data_ptr<float>(), W_fp16,
+                                             total_w);
 
-        // Run FP16 linear
-        zenith::fp16_kernels::linear_fp16(X_fp16, W_fp16, bias_fp16, Y_fp16, M,
-                                          N, K);
-        cudaDeviceSynchronize();
+    // Run FP16 linear
+    zenith::fp16_kernels::linear_fp16(X_fp16, W_fp16, bias_fp16, Y_fp16, M, N,
+                                      K);
+    cudaDeviceSynchronize();
 
-        // Allocate output and convert back
-        zenith::Shape out_shape({M, N});
-        zenith::GpuTensor output(out_shape);
-        zenith::fp16_kernels::convert_f16_to_f32(
-            Y_fp16, output.data_ptr<float>(), total_y);
+    // Allocate output and convert back
+    zenith::Shape out_shape({M, N});
+    zenith::GpuTensor output(out_shape);
+    zenith::fp16_kernels::convert_f16_to_f32(Y_fp16, output.data_ptr<float>(),
+                                             total_y);
 
-        // Cleanup
-        cudaFree(X_fp16);
-        cudaFree(W_fp16);
-        cudaFree(Y_fp16);
-        if (bias_fp16)
-          cudaFree(bias_fp16);
+    // Cleanup
+    cudaFree(X_fp16);
+    cudaFree(W_fp16);
+    cudaFree(Y_fp16);
+    if (bias_fp16)
+      cudaFree(bias_fp16);
 
-        return output;
+    return output;
       },
       py::arg("X"), py::arg("W"), py::arg("bias"),
       "FP16 Linear with Tensor Cores: Y = X @ W^T + bias");
@@ -1739,27 +1730,27 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "gelu_fp16_gpu",
       [](zenith::GpuTensor &input) {
-        if (!input.is_valid()) {
-          throw std::runtime_error("gelu_fp16_gpu requires valid tensor");
-        }
+    if (!input.is_valid()) {
+      throw std::runtime_error("gelu_fp16_gpu requires valid tensor");
+    }
 
-        int size = input.numel();
+    int size = input.numel();
 
-        __half *in_fp16, *out_fp16;
-        cudaMalloc(&in_fp16, size * sizeof(__half));
-        cudaMalloc(&out_fp16, size * sizeof(__half));
+    __half *in_fp16, *out_fp16;
+    cudaMalloc(&in_fp16, size * sizeof(__half));
+    cudaMalloc(&out_fp16, size * sizeof(__half));
 
-        zenith::fp16_kernels::convert_f32_to_f16(input.data_ptr<float>(),
-                                                 in_fp16, size);
-        zenith::fp16_kernels::gelu_fp16(in_fp16, out_fp16, size);
+    zenith::fp16_kernels::convert_f32_to_f16(input.data_ptr<float>(), in_fp16,
+                                             size);
+    zenith::fp16_kernels::gelu_fp16(in_fp16, out_fp16, size);
 
-        zenith::GpuTensor output(input.shape());
-        zenith::fp16_kernels::convert_f16_to_f32(
-            out_fp16, output.data_ptr<float>(), size);
+    zenith::GpuTensor output(input.shape());
+    zenith::fp16_kernels::convert_f16_to_f32(out_fp16, output.data_ptr<float>(),
+                                             size);
 
-        cudaFree(in_fp16);
-        cudaFree(out_fp16);
-        return output;
+    cudaFree(in_fp16);
+    cudaFree(out_fp16);
+    return output;
       },
       py::arg("input"), "FP16 GELU activation");
 
@@ -1768,44 +1759,44 @@ PYBIND11_MODULE(_zenith_core, m) {
       "layernorm_fp16_gpu",
       [](zenith::GpuTensor &input, zenith::GpuTensor &gamma,
          zenith::GpuTensor &beta, double eps) {
-        if (!input.is_valid() || !gamma.is_valid() || !beta.is_valid()) {
-          throw std::runtime_error("layernorm_fp16_gpu requires valid tensors");
-        }
-        if (input.ndim() != 2) {
-          throw std::runtime_error("layernorm_fp16_gpu requires 2D input");
-        }
+    if (!input.is_valid() || !gamma.is_valid() || !beta.is_valid()) {
+      throw std::runtime_error("layernorm_fp16_gpu requires valid tensors");
+    }
+    if (input.ndim() != 2) {
+      throw std::runtime_error("layernorm_fp16_gpu requires 2D input");
+    }
 
-        int batch = input.dim(0);
-        int hidden = input.dim(1);
-        int total = batch * hidden;
+    int batch = input.dim(0);
+    int hidden = input.dim(1);
+    int total = batch * hidden;
 
-        __half *in_fp16, *out_fp16, *gamma_fp16, *beta_fp16;
-        cudaMalloc(&in_fp16, total * sizeof(__half));
-        cudaMalloc(&out_fp16, total * sizeof(__half));
-        cudaMalloc(&gamma_fp16, hidden * sizeof(__half));
-        cudaMalloc(&beta_fp16, hidden * sizeof(__half));
+    __half *in_fp16, *out_fp16, *gamma_fp16, *beta_fp16;
+    cudaMalloc(&in_fp16, total * sizeof(__half));
+    cudaMalloc(&out_fp16, total * sizeof(__half));
+    cudaMalloc(&gamma_fp16, hidden * sizeof(__half));
+    cudaMalloc(&beta_fp16, hidden * sizeof(__half));
 
-        zenith::fp16_kernels::convert_f32_to_f16(input.data_ptr<float>(),
-                                                 in_fp16, total);
-        zenith::fp16_kernels::convert_f32_to_f16(gamma.data_ptr<float>(),
-                                                 gamma_fp16, hidden);
-        zenith::fp16_kernels::convert_f32_to_f16(beta.data_ptr<float>(),
-                                                 beta_fp16, hidden);
+    zenith::fp16_kernels::convert_f32_to_f16(input.data_ptr<float>(), in_fp16,
+                                             total);
+    zenith::fp16_kernels::convert_f32_to_f16(gamma.data_ptr<float>(),
+                                             gamma_fp16, hidden);
+    zenith::fp16_kernels::convert_f32_to_f16(beta.data_ptr<float>(), beta_fp16,
+                                             hidden);
 
-        zenith::fp16_kernels::layernorm_fp16(in_fp16, out_fp16, gamma_fp16,
-                                             beta_fp16, batch, hidden,
-                                             static_cast<float>(eps));
-        cudaDeviceSynchronize();
+    zenith::fp16_kernels::layernorm_fp16(in_fp16, out_fp16, gamma_fp16,
+                                         beta_fp16, batch, hidden,
+                                         static_cast<float>(eps));
+    cudaDeviceSynchronize();
 
-        zenith::GpuTensor output(input.shape());
-        zenith::fp16_kernels::convert_f16_to_f32(
-            out_fp16, output.data_ptr<float>(), total);
+    zenith::GpuTensor output(input.shape());
+    zenith::fp16_kernels::convert_f16_to_f32(out_fp16, output.data_ptr<float>(),
+                                             total);
 
-        cudaFree(in_fp16);
-        cudaFree(out_fp16);
-        cudaFree(gamma_fp16);
-        cudaFree(beta_fp16);
-        return output;
+    cudaFree(in_fp16);
+    cudaFree(out_fp16);
+    cudaFree(gamma_fp16);
+    cudaFree(beta_fp16);
+    return output;
       },
       py::arg("input"), py::arg("gamma"), py::arg("beta"),
       py::arg("eps") = 1e-5, "FP16 LayerNorm with FP32 stats for stability");
@@ -1814,31 +1805,29 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "add_fp16_gpu",
       [](zenith::GpuTensor &a, zenith::GpuTensor &b) {
-        if (!a.is_valid() || !b.is_valid()) {
-          throw std::runtime_error("add_fp16_gpu requires valid tensors");
-        }
+    if (!a.is_valid() || !b.is_valid()) {
+      throw std::runtime_error("add_fp16_gpu requires valid tensors");
+    }
 
-        int size = a.numel();
+    int size = a.numel();
 
-        __half *a_fp16, *b_fp16, *c_fp16;
-        cudaMalloc(&a_fp16, size * sizeof(__half));
-        cudaMalloc(&b_fp16, size * sizeof(__half));
-        cudaMalloc(&c_fp16, size * sizeof(__half));
+    __half *a_fp16, *b_fp16, *c_fp16;
+    cudaMalloc(&a_fp16, size * sizeof(__half));
+    cudaMalloc(&b_fp16, size * sizeof(__half));
+    cudaMalloc(&c_fp16, size * sizeof(__half));
 
-        zenith::fp16_kernels::convert_f32_to_f16(a.data_ptr<float>(), a_fp16,
-                                                 size);
-        zenith::fp16_kernels::convert_f32_to_f16(b.data_ptr<float>(), b_fp16,
-                                                 size);
-        zenith::fp16_kernels::add_fp16(a_fp16, b_fp16, c_fp16, size);
+    zenith::fp16_kernels::convert_f32_to_f16(a.data_ptr<float>(), a_fp16, size);
+    zenith::fp16_kernels::convert_f32_to_f16(b.data_ptr<float>(), b_fp16, size);
+    zenith::fp16_kernels::add_fp16(a_fp16, b_fp16, c_fp16, size);
 
-        zenith::GpuTensor output(a.shape());
-        zenith::fp16_kernels::convert_f16_to_f32(
-            c_fp16, output.data_ptr<float>(), size);
+    zenith::GpuTensor output(a.shape());
+    zenith::fp16_kernels::convert_f16_to_f32(c_fp16, output.data_ptr<float>(),
+                                             size);
 
-        cudaFree(a_fp16);
-        cudaFree(b_fp16);
-        cudaFree(c_fp16);
-        return output;
+    cudaFree(a_fp16);
+    cudaFree(b_fp16);
+    cudaFree(c_fp16);
+    return output;
       },
       py::arg("a"), py::arg("b"), "FP16 element-wise add");
 
@@ -1846,53 +1835,54 @@ PYBIND11_MODULE(_zenith_core, m) {
   cuda.def(
       "attention_full_fp16_gpu",
       [](zenith::GpuTensor &Q, zenith::GpuTensor &K, zenith::GpuTensor &V) {
-        if (!Q.is_valid() || !K.is_valid() || !V.is_valid()) {
-          throw std::runtime_error(
-              "attention_full_fp16_gpu requires valid tensors");
-        }
-        if (Q.ndim() != 4) {
-          throw std::runtime_error(
-              "attention_full_fp16_gpu requires 4D tensors");
-        }
+    if (!Q.is_valid() || !K.is_valid() || !V.is_valid()) {
+      throw std::runtime_error(
+          "attention_full_fp16_gpu requires valid tensors");
+    }
+    if (Q.ndim() != 4) {
+      throw std::runtime_error("attention_full_fp16_gpu requires 4D tensors");
+    }
 
-        int batch = Q.dim(0);
-        int heads = Q.dim(1);
-        int seq = Q.dim(2);
-        int dim = Q.dim(3);
-        int total = batch * heads * seq * dim;
+    int batch = Q.dim(0);
+    int heads = Q.dim(1);
+    int seq = Q.dim(2);
+    int dim = Q.dim(3);
+    int total = batch * heads * seq * dim;
 
-        __half *Q_fp16, *K_fp16, *V_fp16, *O_fp16;
-        cudaMalloc(&Q_fp16, total * sizeof(__half));
-        cudaMalloc(&K_fp16, total * sizeof(__half));
-        cudaMalloc(&V_fp16, total * sizeof(__half));
-        cudaMalloc(&O_fp16, total * sizeof(__half));
+    __half *Q_fp16, *K_fp16, *V_fp16, *O_fp16;
+    cudaMalloc(&Q_fp16, total * sizeof(__half));
+    cudaMalloc(&K_fp16, total * sizeof(__half));
+    cudaMalloc(&V_fp16, total * sizeof(__half));
+    cudaMalloc(&O_fp16, total * sizeof(__half));
 
-        zenith::fp16_kernels::convert_f32_to_f16(Q.data_ptr<float>(), Q_fp16,
-                                                 total);
-        zenith::fp16_kernels::convert_f32_to_f16(K.data_ptr<float>(), K_fp16,
-                                                 total);
-        zenith::fp16_kernels::convert_f32_to_f16(V.data_ptr<float>(), V_fp16,
-                                                 total);
+    zenith::fp16_kernels::convert_f32_to_f16(Q.data_ptr<float>(), Q_fp16,
+                                             total);
+    zenith::fp16_kernels::convert_f32_to_f16(K.data_ptr<float>(), K_fp16,
+                                             total);
+    zenith::fp16_kernels::convert_f32_to_f16(V.data_ptr<float>(), V_fp16,
+                                             total);
 
-        zenith::fp16_kernels::attention_fp16(Q_fp16, K_fp16, V_fp16, O_fp16,
-                                             batch, heads, seq, dim);
+    zenith::fp16_kernels::attention_fp16(Q_fp16, K_fp16, V_fp16, O_fp16, batch,
+                                         heads, seq, dim);
 
-        zenith::GpuTensor output(Q.shape());
-        zenith::fp16_kernels::convert_f16_to_f32(
-            O_fp16, output.data_ptr<float>(), total);
+    zenith::GpuTensor output(Q.shape());
+    zenith::fp16_kernels::convert_f16_to_f32(O_fp16, output.data_ptr<float>(),
+                                             total);
 
-        cudaFree(Q_fp16);
-        cudaFree(K_fp16);
-        cudaFree(V_fp16);
-        cudaFree(O_fp16);
-        return output;
+    cudaFree(Q_fp16);
+    cudaFree(K_fp16);
+    cudaFree(V_fp16);
+    cudaFree(O_fp16);
+    return output;
       },
       py::arg("Q"), py::arg("K"), py::arg("V"),
       "Full FP16 attention with improved kernel suite");
 
-  cuda.def("has_cudnn", []() { return true; });
+  cuda.def("has_cudnn", []() {
+    return true; });
 #else
-  cuda.def("has_cudnn", []() { return false; });
+  cuda.def("has_cudnn", []() {
+    return false; });
 #endif
 
 #endif // ZENITH_HAS_CUDA
