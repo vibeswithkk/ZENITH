@@ -1602,6 +1602,8 @@ PYBIND11_MODULE(_zenith_core, m) {
       py::arg("dim"), "Transpose [B,H,S,D] -> [B,S,H,D] from attention");
 
   // Reshape 4D to 2D: [batch, seq, heads, dim] -> [batch*seq, heads*dim]
+  // Note: For contiguous memory, this is just a view change, but we need new
+  // tensor
   cuda.def(
       "reshape_4d_to_2d",
       [](zenith::GpuTensor &input, int batch, int seq, int hidden) {
@@ -1610,9 +1612,10 @@ PYBIND11_MODULE(_zenith_core, m) {
         }
         zenith::Shape out_shape({batch * seq, hidden});
         zenith::GpuTensor output(out_shape);
-        cudaMemcpy(output.data_ptr<float>(), input.data_ptr<float>(),
-                   batch * seq * hidden * sizeof(float),
-                   cudaMemcpyDeviceToDevice);
+        // Use async copy to avoid blocking
+        cudaMemcpyAsync(output.data_ptr<float>(), input.data_ptr<float>(),
+                        batch * seq * hidden * sizeof(float),
+                        cudaMemcpyDeviceToDevice, 0);
         return output;
       },
       py::arg("input"), py::arg("batch"), py::arg("seq"), py::arg("hidden"),
