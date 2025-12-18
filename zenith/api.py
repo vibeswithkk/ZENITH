@@ -239,13 +239,21 @@ class CompiledModel:
         self.backend = backend
         self.target = target
         self._original_model = original_model
-        self._is_pytorch = self._detect_pytorch()
+        self._framework = None  # Lazy detection
 
-    def _detect_pytorch(self) -> bool:
-        """Check if the original model is a PyTorch model."""
+    def _detect_framework(self) -> str:
+        """Detect which ML framework the original model uses."""
         if self._original_model is None:
-            return False
-        return "torch" in type(self._original_model).__module__
+            return "unknown"
+        module = type(self._original_model).__module__
+        if "torch" in module:
+            return "pytorch"
+        elif "tensorflow" in module or "keras" in module:
+            return "tensorflow"
+        elif "jax" in module or "flax" in module or "haiku" in module:
+            return "jax"
+        else:
+            return "unknown"
 
     def __call__(self, *args, **kwargs):
         """
@@ -260,22 +268,58 @@ class CompiledModel:
                 "Provide sample_input during compilation."
             )
 
-        # Execute via original model (wrapper approach)
-        # Future: intercept and use Zenith CUDA ops
-        if self._is_pytorch:
-            import torch
+        framework = self._detect_framework()
 
-            # Move to target device if needed
-            if self.backend == "cuda" and torch.cuda.is_available():
-                device = torch.device("cuda")
-                self._original_model.to(device)
-                args = tuple(a.to(device) if hasattr(a, "to") else a for a in args)
-
-            with torch.no_grad():
-                return self._original_model(*args, **kwargs)
+        if framework == "pytorch":
+            return self._execute_pytorch(*args, **kwargs)
+        elif framework == "tensorflow":
+            return self._execute_tensorflow(*args, **kwargs)
+        elif framework == "jax":
+            return self._execute_jax(*args, **kwargs)
         else:
-            # Non-PyTorch models
+            # Generic fallback
             return self._original_model(*args, **kwargs)
+
+    def _execute_pytorch(self, *args, **kwargs):
+        """Execute PyTorch model with device handling."""
+        import torch
+
+        # Move to target device if needed
+        if self.backend == "cuda" and torch.cuda.is_available():
+            device = torch.device("cuda")
+            self._original_model.to(device)
+            args = tuple(a.to(device) if hasattr(a, "to") else a for a in args)
+
+        with torch.no_grad():
+            return self._original_model(*args, **kwargs)
+
+    def _execute_tensorflow(self, *args, **kwargs):
+        """Execute TensorFlow/Keras model with device handling."""
+        import tensorflow as tf
+
+        # Handle device placement
+        if self.backend == "cuda":
+            device = "/GPU:0"
+        else:
+            device = "/CPU:0"
+
+        with tf.device(device):
+            return self._original_model(*args, **kwargs)
+
+    def _execute_jax(self, *args, **kwargs):
+        """Execute JAX function with device handling."""
+        import jax
+
+        # JAX automatically uses available accelerators
+        # For explicit device control, we could use jax.devices()
+        if self.backend == "cuda":
+            # Ensure JAX uses GPU if available
+            devices = jax.devices("gpu")
+            if devices:
+                with jax.default_device(devices[0]):
+                    return self._original_model(*args, **kwargs)
+
+        return self._original_model(*args, **kwargs)
 
     def __repr__(self) -> str:
         return (
@@ -291,6 +335,6 @@ class CompiledModel:
 
     def to(self, device):
         """Move the model to a device (PyTorch compatibility)."""
-        if self._is_pytorch and self._original_model is not None:
+        if self._detect_framework() == "pytorch" and self._original_model is not None:
             self._original_model.to(device)
         return self
