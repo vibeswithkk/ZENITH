@@ -654,6 +654,31 @@ PYBIND11_MODULE(_zenith_core, m) {
       .def("size_bytes", &zenith::GpuTensor::size_bytes)
       .def("ndim", &zenith::GpuTensor::ndim)
       .def(
+          "dim",
+          [](zenith::GpuTensor &self, int axis) {
+            if (!self.is_valid()) {
+              throw std::runtime_error("Invalid GpuTensor");
+            }
+            if (axis < 0 || axis >= static_cast<int>(self.shape().rank())) {
+              throw std::runtime_error("Axis out of range");
+            }
+            return self.shape()[axis];
+          },
+          py::arg("axis"), "Get dimension at axis")
+      .def_property_readonly(
+          "shape",
+          [](zenith::GpuTensor &self) {
+            if (!self.is_valid()) {
+              return py::tuple();
+            }
+            py::list dims;
+            for (size_t i = 0; i < self.shape().rank(); ++i) {
+              dims.append(self.shape()[i]);
+            }
+            return py::tuple(dims);
+          },
+          "Get tensor shape as tuple")
+      .def(
           "to_numpy",
           [](zenith::GpuTensor &self) {
             if (!self.is_valid()) {
