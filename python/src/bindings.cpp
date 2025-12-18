@@ -1590,6 +1590,77 @@ PYBIND11_MODULE(_zenith_core, m) {
       },
       py::arg("A"), py::arg("B"), "Element-wise add: C = A + B (2D tensors)");
 
+  // ========================================================================
+  // FUSED KERNELS (Performance Critical)
+  // These combine multiple operations into single kernel launches
+  // ========================================================================
+
+  // Fused Add + LayerNorm: output = LayerNorm(x + residual)
+  // Replaces: add_2d_gpu + layernorm_gpu (2 kernels -> 1 kernel)
+  cuda.def(
+      "fused_add_layernorm_gpu",
+      [](zenith::GpuTensor &x, zenith::GpuTensor &residual,
+         zenith::GpuTensor &gamma, zenith::GpuTensor &beta, float eps) {
+        if (!x.is_valid() || !residual.is_valid()) {
+          throw std::runtime_error(
+              "fused_add_layernorm_gpu requires valid GpuTensors");
+        }
+        if (x.ndim() != 2) {
+          throw std::runtime_error(
+              "fused_add_layernorm_gpu requires 2D tensor [batch, hidden]");
+        }
+
+        int batch = x.dim(0);
+        int hidden = x.dim(1);
+
+        zenith::GpuTensor output(x.shape());
+
+        // Call C-linkage fused kernel
+        extern void fused_add_layernorm(
+            const float *x, const float *residual, const float *gamma,
+            const float *beta, float *output, int batch, int hidden, float eps);
+
+        fused_add_layernorm(x.data_ptr<float>(), residual.data_ptr<float>(),
+                            gamma.data_ptr<float>(), beta.data_ptr<float>(),
+                            output.data_ptr<float>(), batch, hidden, eps);
+
+        return output;
+      },
+      py::arg("x"), py::arg("residual"), py::arg("gamma"), py::arg("beta"),
+      py::arg("eps") = 1e-5,
+      "Fused Add + LayerNorm: output = LayerNorm(x + residual)");
+
+  // Fused Bias + GELU: output = GELU(input + bias)
+  // Replaces: linear_gpu bias add + gelu_gpu (fuses into single pass)
+  cuda.def(
+      "fused_bias_gelu_gpu",
+      [](zenith::GpuTensor &input, zenith::GpuTensor &bias) {
+        if (!input.is_valid()) {
+          throw std::runtime_error(
+              "fused_bias_gelu_gpu requires valid GpuTensor");
+        }
+        if (input.ndim() != 2) {
+          throw std::runtime_error(
+              "fused_bias_gelu_gpu requires 2D tensor [batch, features]");
+        }
+
+        int batch = input.dim(0);
+        int features = input.dim(1);
+
+        zenith::GpuTensor output(input.shape());
+
+        // Call C-linkage fused kernel
+        extern void fused_bias_gelu(const float *input, const float *bias,
+                                    float *output, int batch, int features);
+
+        fused_bias_gelu(input.data_ptr<float>(), bias.data_ptr<float>(),
+                        output.data_ptr<float>(), batch, features);
+
+        return output;
+      },
+      py::arg("input"), py::arg("bias"),
+      "Fused Bias + GELU: output = GELU(input + bias)");
+
   // Transpose for attention: [batch, seq, heads, dim] -> [batch, heads, seq,
   // dim]
   cuda.def(

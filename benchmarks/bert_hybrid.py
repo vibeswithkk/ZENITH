@@ -125,9 +125,10 @@ class BertLayerHybrid:
         # === Output Projection (FP32 cuBLAS) ===
         projected = cuda.linear_gpu(attn_2d, self.attn_out_weight, self.attn_out_bias)
 
-        # === Residual + LayerNorm (FP32) ===
-        residual = cuda.add_2d_gpu(projected, x_gpu)
-        hidden = cuda.layernorm_gpu(residual, self.ln1_gamma, self.ln1_beta)
+        # === Residual + LayerNorm FUSED (1 kernel instead of 2) ===
+        hidden = cuda.fused_add_layernorm_gpu(
+            projected, x_gpu, self.ln1_gamma, self.ln1_beta
+        )
 
         # === FFN Up + GELU (FP32) ===
         ffn_up = cuda.linear_gpu(hidden, self.ffn_up_weight, self.ffn_up_bias)
@@ -136,9 +137,10 @@ class BertLayerHybrid:
         # === FFN Down (FP32) ===
         ffn_down = cuda.linear_gpu(ffn_up, self.ffn_down_weight, self.ffn_down_bias)
 
-        # === Residual + LayerNorm (FP32) ===
-        residual2 = cuda.add_2d_gpu(ffn_down, hidden)
-        output = cuda.layernorm_gpu(residual2, self.ln2_gamma, self.ln2_beta)
+        # === Residual + LayerNorm FUSED (1 kernel instead of 2) ===
+        output = cuda.fused_add_layernorm_gpu(
+            ffn_down, hidden, self.ln2_gamma, self.ln2_beta
+        )
 
         return output
 
