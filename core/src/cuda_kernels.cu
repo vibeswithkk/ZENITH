@@ -493,6 +493,88 @@ void add_bias_f32(float *output, const float *bias, int M, int N) {
   add_bias_kernel<<<blocks, BLOCK_SIZE>>>(output, bias, M, N);
 }
 
+// ============================================================================
+// Tensor Manipulation Kernels (for eliminating to_numpy)
+// ============================================================================
+
+// Element-wise add for 2D tensors: C = A + B
+__global__ void add_2d_kernel(const float *A, const float *B, float *C,
+                              int size) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx >= size)
+    return;
+  C[idx] = A[idx] + B[idx];
+}
+
+void add_2d_f32(const float *A, const float *B, float *C, int M, int N) {
+  int total = M * N;
+  int blocks = div_ceil(total, BLOCK_SIZE);
+  add_2d_kernel<<<blocks, BLOCK_SIZE>>>(A, B, C, total);
+}
+
+// Reshape 2D to 4D: [batch*seq, hidden] -> [batch, seq, heads, dim]
+// This is a no-op for contiguous data, just reinterpret shape
+// But we need it for the Python binding
+
+// Transpose for attention: [batch, seq, heads, dim] -> [batch, heads, seq, dim]
+// Permutation: (0, 2, 1, 3)
+__global__ void transpose_0213_kernel(const float *input, float *output,
+                                      int batch, int seq, int heads, int dim) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  int total = batch * heads * seq * dim;
+  if (idx >= total)
+    return;
+
+  // Output index: [b, h, s, d]
+  int d = idx % dim;
+  int s = (idx / dim) % seq;
+  int h = (idx / (dim * seq)) % heads;
+  int b = idx / (dim * seq * heads);
+
+  // Input index: [b, s, h, d]
+  int input_idx = b * (seq * heads * dim) + s * (heads * dim) + h * dim + d;
+
+  output[idx] = input[input_idx];
+}
+
+void transpose_0213_f32(const float *input, float *output, int batch, int seq,
+                        int heads, int dim) {
+  int total = batch * seq * heads * dim;
+  int blocks = div_ceil(total, BLOCK_SIZE);
+  transpose_0213_kernel<<<blocks, BLOCK_SIZE>>>(input, output, batch, seq,
+                                                heads, dim);
+}
+
+// Inverse transpose: [batch, heads, seq, dim] -> [batch, seq, heads, dim]
+// Permutation: (0, 2, 1, 3)
+__global__ void transpose_0213_inv_kernel(const float *input, float *output,
+                                          int batch, int heads, int seq,
+                                          int dim) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  int total = batch * heads * seq * dim;
+  if (idx >= total)
+    return;
+
+  // Output index: [b, s, h, d]
+  int d = idx % dim;
+  int h = (idx / dim) % heads;
+  int s = (idx / (dim * heads)) % seq;
+  int b = idx / (dim * heads * seq);
+
+  // Input index: [b, h, s, d]
+  int input_idx = b * (heads * seq * dim) + h * (seq * dim) + s * dim + d;
+
+  output[idx] = input[input_idx];
+}
+
+void transpose_0213_inv_f32(const float *input, float *output, int batch,
+                            int heads, int seq, int dim) {
+  int total = batch * heads * seq * dim;
+  int blocks = div_ceil(total, BLOCK_SIZE);
+  transpose_0213_inv_kernel<<<blocks, BLOCK_SIZE>>>(input, output, batch, heads,
+                                                    seq, dim);
+}
+
 } // namespace cuda_kernels
 } // namespace zenith
 

@@ -76,6 +76,17 @@ void softmax_2d_f32(const float *input, float *output, int batch, int len);
 /// Add bias: output[i,j] += bias[j] for each row i
 void add_bias_f32(float *output, const float *bias, int M, int N);
 
+/// Element-wise add 2D: C = A + B
+void add_2d_f32(const float *A, const float *B, float *C, int M, int N);
+
+/// Transpose [batch, seq, heads, dim] -> [batch, heads, seq, dim]
+void transpose_0213_f32(const float *input, float *output, int batch, int seq,
+                        int heads, int dim);
+
+/// Inverse transpose [batch, heads, seq, dim] -> [batch, seq, heads, dim]
+void transpose_0213_inv_f32(const float *input, float *output, int batch,
+                            int heads, int seq, int dim);
+
 } // namespace cuda_kernels
 } // namespace zenith
 

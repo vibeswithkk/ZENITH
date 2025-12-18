@@ -1533,6 +1533,69 @@ PYBIND11_MODULE(_zenith_core, m) {
       py::arg("Q"), py::arg("K"), py::arg("V"),
       "cuBLAS attention [batch, heads, seq, dim] - use Tensor Cores");
 
+  // Element-wise add for 2D tensors (for residual connections)
+  cuda.def(
+      "add_2d_gpu",
+      [](zenith::GpuTensor &A, zenith::GpuTensor &B) {
+        if (!A.is_valid() || !B.is_valid()) {
+          throw std::runtime_error("add_2d_gpu requires valid GpuTensors");
+        }
+        if (A.ndim() != 2 || B.ndim() != 2) {
+          throw std::runtime_error("add_2d_gpu requires 2D tensors");
+        }
+
+        int M = A.dim(0);
+        int N = A.dim(1);
+
+        zenith::GpuTensor output(A.shape());
+        zenith::cuda_kernels::add_2d_f32(A.data_ptr<float>(),
+                                         B.data_ptr<float>(),
+                                         output.data_ptr<float>(), M, N);
+        return output;
+      },
+      py::arg("A"), py::arg("B"), "Element-wise add: C = A + B (2D tensors)");
+
+  // Transpose for attention: [batch, seq, heads, dim] -> [batch, heads, seq,
+  // dim]
+  cuda.def(
+      "transpose_for_attention",
+      [](zenith::GpuTensor &input, int batch, int seq, int heads, int dim) {
+        if (!input.is_valid()) {
+          throw std::runtime_error(
+              "transpose_for_attention needs valid tensor");
+        }
+
+        zenith::Shape out_shape({batch, heads, seq, dim});
+        zenith::GpuTensor output(out_shape);
+
+        zenith::cuda_kernels::transpose_0213_f32(input.data_ptr<float>(),
+                                                 output.data_ptr<float>(),
+                                                 batch, seq, heads, dim);
+        return output;
+      },
+      py::arg("input"), py::arg("batch"), py::arg("seq"), py::arg("heads"),
+      py::arg("dim"), "Transpose [B,S,H,D] -> [B,H,S,D] for attention");
+
+  // Inverse transpose: [batch, heads, seq, dim] -> [batch, seq, heads, dim]
+  cuda.def(
+      "transpose_from_attention",
+      [](zenith::GpuTensor &input, int batch, int heads, int seq, int dim) {
+        if (!input.is_valid()) {
+          throw std::runtime_error(
+              "transpose_from_attention needs valid tensor");
+        }
+
+        zenith::Shape out_shape({batch, seq, heads, dim});
+        zenith::GpuTensor output(out_shape);
+
+        zenith::cuda_kernels::transpose_0213_inv_f32(input.data_ptr<float>(),
+                                                     output.data_ptr<float>(),
+                                                     batch, heads, seq, dim);
+        return output;
+      },
+      py::arg("input"), py::arg("batch"), py::arg("heads"), py::arg("seq"),
+      py::arg("dim"), "Transpose [B,H,S,D] -> [B,S,H,D] from attention");
+
   cuda.def("has_cudnn", []() { return true; });
 #else
   cuda.def("has_cudnn", []() { return false; });
