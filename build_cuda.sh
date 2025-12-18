@@ -40,7 +40,7 @@ cmake .. \
 
 # Build
 echo "Building..."
-make -j$(nproc) zenith_core _zenith_core
+make -j$(nproc) zenith_core _zenith_core test_core
 
 # Copy module to python path
 echo "Installing module..."
