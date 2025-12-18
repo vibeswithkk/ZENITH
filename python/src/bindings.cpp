@@ -10,6 +10,9 @@
 #include <zenith/kernels.hpp>
 #include <zenith/zenith.hpp>
 
+// Feature bindings for fused ops, error verification, pruning
+#include "features_bindings.hpp"
+
 #ifdef ZENITH_HAS_CUDA
 #include <zenith/cublas_attention.hpp> // cuBLAS-based attention
 #include <zenith/cublas_ops.hpp>
@@ -310,6 +313,9 @@ PYBIND11_MODULE(_zenith_core, m) {
 
   // Version info
   m.attr("__version__") = zenith::VERSION;
+
+  // Register feature bindings (fused ops, verification, pruning)
+  zenith::python::register_feature_bindings(m);
 
   // ========================================================================
   // DataType Enum
