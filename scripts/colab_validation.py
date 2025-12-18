@@ -81,30 +81,33 @@ def run_performance_test():
     M, K, N = 1024, 1024, 1024
     print(f"   Problem size: MatMul [{M}x{K}] * [{K}x{N}]")
 
-    # Add inputs
-    graph.add_input(TensorDescriptor("A", Shape([M, K]), DataType.Float32))
-    graph.add_input(TensorDescriptor("B", Shape([K, N]), DataType.Float32))
-    graph.add_output(TensorDescriptor("Y", Shape([M, N]), DataType.Float32))
+    # Create descriptors
+    A_desc = TensorDescriptor("A", Shape([M, K]), DataType.Float32)
+    B_desc = TensorDescriptor("B", Shape([K, N]), DataType.Float32)
+    temp_desc = TensorDescriptor("temp", Shape([M, N]), DataType.Float32)
+    Y_desc = TensorDescriptor("Y", Shape([M, N]), DataType.Float32)
 
-    # Add nodes (Manual construction for test)
-    # Note: In real usage, adapters handle this. We simulate the internal structure.
-    from zenith.core import Node
+    # Add inputs/outputs to graph
+    graph.add_input(A_desc)
+    graph.add_input(B_desc)
+    graph.add_output(Y_desc)
 
-    matmul_node = Node(
-        name="MatMul_0",
+    # Add nodes using add_node method
+    # MatMul
+    graph.add_node(
         op_type="MatMul",
-        inputs=["A", "B"],
-        outputs=["temp"],
+        name="MatMul_0",
+        inputs=[A_desc, B_desc],
+        outputs=[temp_desc],
     )
-    graph.add_node(matmul_node)
 
-    relu_node = Node(
-        name="Relu_0",
+    # Relu
+    graph.add_node(
         op_type="Relu",
-        inputs=["temp"],
-        outputs=["Y"],
+        name="Relu_0",
+        inputs=[temp_desc],
+        outputs=[Y_desc],
     )
-    graph.add_node(relu_node)
 
     # Generate data
     A_data = np.random.randn(M, K).astype(np.float32)
