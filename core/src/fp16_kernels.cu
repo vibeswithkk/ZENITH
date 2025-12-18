@@ -125,6 +125,7 @@ void gelu_fp16(const __half *input, __half *output, int size) {
 
 // ============================================================================
 // FP16 LayerNorm with FP32 Statistics (Numerically Stable)
+// FIXED: Use shared memory to broadcast mean/variance to all threads
 // ============================================================================
 
 __global__ void layernorm_fp16_kernel(const __half *__restrict__ input,
@@ -139,6 +140,15 @@ __global__ void layernorm_fp16_kernel(const __half *__restrict__ input,
   const __half *row_in = input + row * hidden;
   __half *row_out = output + row * hidden;
 
+  // Shared memory for warp reductions and final broadcast
+  __shared__ float warp_sums[8]; // Max 256 threads = 8 warps
+  __shared__ float result_mean;
+  __shared__ float result_inv_std;
+
+  int lane = threadIdx.x % 32;
+  int warp = threadIdx.x / 32;
+  int num_warps = (blockDim.x + 31) / 32;
+
   // Step 1: Compute mean in FP32
   float sum = 0.0f;
   for (int i = threadIdx.x; i < hidden; i += blockDim.x) {
@@ -150,23 +160,29 @@ __global__ void layernorm_fp16_kernel(const __half *__restrict__ input,
     sum += __shfl_down_sync(0xffffffff, sum, offset);
   }
 
-  __shared__ float shared_sum[32];
-  int lane = threadIdx.x % 32;
-  int warp = threadIdx.x / 32;
-  if (lane == 0)
-    shared_sum[warp] = sum;
+  // Store warp sums
+  if (lane == 0) {
+    warp_sums[warp] = sum;
+  }
   __syncthreads();
 
+  // Final reduction in first warp
+  if (threadIdx.x < num_warps) {
+    sum = warp_sums[threadIdx.x];
+  } else if (threadIdx.x < 32) {
+    sum = 0.0f;
+  }
   if (threadIdx.x < 32) {
-    sum =
-        (threadIdx.x < (blockDim.x + 31) / 32) ? shared_sum[threadIdx.x] : 0.0f;
     for (int offset = 16; offset > 0; offset /= 2) {
       sum += __shfl_down_sync(0xffffffff, sum, offset);
+    }
+    if (threadIdx.x == 0) {
+      result_mean = sum / static_cast<float>(hidden);
     }
   }
   __syncthreads();
 
-  float mean = __shfl_sync(0xffffffff, sum, 0) / static_cast<float>(hidden);
+  float mean = result_mean;
 
   // Step 2: Compute variance in FP32
   float var_sum = 0.0f;
@@ -180,22 +196,29 @@ __global__ void layernorm_fp16_kernel(const __half *__restrict__ input,
     var_sum += __shfl_down_sync(0xffffffff, var_sum, offset);
   }
 
-  if (lane == 0)
-    shared_sum[warp] = var_sum;
+  if (lane == 0) {
+    warp_sums[warp] = var_sum;
+  }
   __syncthreads();
 
+  // Final reduction
+  if (threadIdx.x < num_warps) {
+    var_sum = warp_sums[threadIdx.x];
+  } else if (threadIdx.x < 32) {
+    var_sum = 0.0f;
+  }
   if (threadIdx.x < 32) {
-    var_sum =
-        (threadIdx.x < (blockDim.x + 31) / 32) ? shared_sum[threadIdx.x] : 0.0f;
     for (int offset = 16; offset > 0; offset /= 2) {
       var_sum += __shfl_down_sync(0xffffffff, var_sum, offset);
+    }
+    if (threadIdx.x == 0) {
+      float variance = var_sum / static_cast<float>(hidden);
+      result_inv_std = rsqrtf(variance + eps);
     }
   }
   __syncthreads();
 
-  float variance =
-      __shfl_sync(0xffffffff, var_sum, 0) / static_cast<float>(hidden);
-  float inv_std = rsqrtf(variance + eps);
+  float inv_std = result_inv_std;
 
   // Step 3: Normalize and apply gamma/beta
   for (int i = threadIdx.x; i < hidden; i += blockDim.x) {
@@ -211,6 +234,7 @@ void layernorm_fp16(const __half *input, __half *output, const __half *gamma,
                     const __half *beta, int batch, int hidden, float eps) {
   layernorm_fp16_kernel<<<batch, 256>>>(input, output, gamma, beta, batch,
                                         hidden, eps);
+  cudaDeviceSynchronize();
 }
 
 // ============================================================================
