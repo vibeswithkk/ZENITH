@@ -122,7 +122,7 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-v --tb=short --cov=zenith --cov-report=term-missing"
+addopts = "-v --tb=short"
 
 [tool.coverage.run]
 source = ["zenith"]
