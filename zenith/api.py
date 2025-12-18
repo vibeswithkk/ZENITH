@@ -80,7 +80,7 @@ def compile(
         >>> optimized = zenith.compile(model, target="cuda", sample_input=sample)
     """
     # Step 1: Detect framework and convert to GraphIR
-    graph_ir = _convert_to_graphir(model, sample_input, **kwargs)
+    graph_ir, original_model = _convert_to_graphir(model, sample_input, **kwargs)
 
     # Step 2: Apply optimizations based on opt_level
     optimized_ir = _optimize_graph(
@@ -90,8 +90,8 @@ def compile(
         tolerance=tolerance,
     )
 
-    # Step 3: Compile for target
-    compiled = _compile_for_target(optimized_ir, target)
+    # Step 3: Compile for target (pass original model for execution)
+    compiled = _compile_for_target(optimized_ir, target, original_model)
 
     return compiled
 
@@ -127,31 +127,41 @@ def _detect_framework(model: Any) -> str:
         )
 
 
-def _convert_to_graphir(model: Any, sample_input: Any = None, **kwargs) -> GraphIR:
-    """Convert model from any framework to GraphIR."""
+def _convert_to_graphir(
+    model: Any, sample_input: Any = None, **kwargs
+) -> tuple[GraphIR, Any]:
+    """Convert model from any framework to GraphIR.
+
+    Returns:
+        Tuple of (GraphIR, original_model) - keeps original for execution
+    """
     framework = _detect_framework(model)
 
     if framework == "pytorch":
         adapter = PyTorchAdapter()
         if not adapter.is_available:
             raise ImportError("PyTorch is not installed")
-        return adapter.from_model(model, sample_input, **kwargs)
+        graph_ir = adapter.from_model(model, sample_input, **kwargs)
+        return graph_ir, model
 
     elif framework == "tensorflow":
         adapter = TensorFlowAdapter()
         if not adapter.is_available:
             raise ImportError("TensorFlow is not installed")
-        return adapter.from_model(model, sample_input, **kwargs)
+        graph_ir = adapter.from_model(model, sample_input, **kwargs)
+        return graph_ir, model
 
     elif framework == "jax":
         adapter = JAXAdapter()
         if not adapter.is_available:
             raise ImportError("JAX is not installed")
-        return adapter.from_model(model, sample_input, **kwargs)
+        graph_ir = adapter.from_model(model, sample_input, **kwargs)
+        return graph_ir, model
 
     elif framework == "onnx":
         adapter = ONNXAdapter()
-        return adapter.from_model(model, **kwargs)
+        graph_ir = adapter.from_model(model, **kwargs)
+        return graph_ir, model
 
     else:
         raise ValueError(f"Unsupported framework: {framework}")
@@ -178,22 +188,24 @@ def _optimize_graph(
     return graph_ir
 
 
-def _compile_for_target(graph_ir: GraphIR, target: str) -> Any:
+def _compile_for_target(graph_ir: GraphIR, target: str, original_model: Any) -> Any:
     """
     Compile GraphIR for the specified target.
 
-    This is a placeholder for the full compilation pipeline.
-    Full implementation will:
-    - Select appropriate backend (CPU, CUDA, etc.)
-    - Generate optimized kernels
-    - Create executable or callable
+    Args:
+        graph_ir: The optimized graph IR.
+        target: Target device specification.
+        original_model: Original model for execution fallback.
+
+    Returns:
+        CompiledModel that can be called like the original model.
     """
     # Parse target
     if target.startswith("cuda"):
         backend = "cuda"
+        device_id = 0
         if ":" in target:
-            # Parse device ID for future use
-            _ = int(target.split(":")[1])
+            device_id = int(target.split(":")[1])
     elif target.startswith("rocm"):
         backend = "rocm"
         raise NotImplementedError("ROCm backend not implemented yet")
@@ -202,31 +214,68 @@ def _compile_for_target(graph_ir: GraphIR, target: str) -> Any:
         raise NotImplementedError("TPU backend not implemented yet")
     else:
         backend = "cpu"
+        device_id = 0
 
-    # For now, return the GraphIR with compilation metadata
-    # Full compilation will be implemented in Phase 1
-    return CompiledModel(graph_ir, backend, target)
+    return CompiledModel(graph_ir, backend, target, original_model)
 
 
 class CompiledModel:
     """
     Represents a compiled and optimized model.
 
-    This is a placeholder that will be replaced with actual
-    compiled execution logic in Phase 1.
+    Wraps the original model and provides Zenith optimization metadata.
+    Currently delegates execution to the original model, with Zenith
+    optimizations to be added incrementally.
     """
 
-    def __init__(self, graph_ir: GraphIR, backend: str, target: str):
+    def __init__(
+        self,
+        graph_ir: GraphIR,
+        backend: str,
+        target: str,
+        original_model: Any = None,
+    ):
         self.graph_ir = graph_ir
         self.backend = backend
         self.target = target
+        self._original_model = original_model
+        self._is_pytorch = self._detect_pytorch()
+
+    def _detect_pytorch(self) -> bool:
+        """Check if the original model is a PyTorch model."""
+        if self._original_model is None:
+            return False
+        return "torch" in type(self._original_model).__module__
 
     def __call__(self, *args, **kwargs):
-        """Execute the compiled model."""
-        raise NotImplementedError(
-            "Model execution not implemented yet. "
-            "This will be available in Phase 1 with backend support."
-        )
+        """
+        Execute the compiled model.
+
+        Currently delegates to the original model. Future versions will
+        use Zenith's optimized execution path.
+        """
+        if self._original_model is None:
+            raise RuntimeError(
+                "No original model available for execution. "
+                "Provide sample_input during compilation."
+            )
+
+        # Execute via original model (wrapper approach)
+        # Future: intercept and use Zenith CUDA ops
+        if self._is_pytorch:
+            import torch
+
+            # Move to target device if needed
+            if self.backend == "cuda" and torch.cuda.is_available():
+                device = torch.device("cuda")
+                self._original_model.to(device)
+                args = tuple(a.to(device) if hasattr(a, "to") else a for a in args)
+
+            with torch.no_grad():
+                return self._original_model(*args, **kwargs)
+        else:
+            # Non-PyTorch models
+            return self._original_model(*args, **kwargs)
 
     def __repr__(self) -> str:
         return (
@@ -239,3 +288,9 @@ class CompiledModel:
     def summary(self) -> str:
         """Get a summary of the compiled model."""
         return self.graph_ir.summary()
+
+    def to(self, device):
+        """Move the model to a device (PyTorch compatibility)."""
+        if self._is_pytorch and self._original_model is not None:
+            self._original_model.to(device)
+        return self
