@@ -119,9 +119,11 @@ class BertEncoderZeroCopy:
         attn_out_gpu = cuda.cublas_attention_gpu(Q_4d, K_4d, V_4d)
 
         # === Transpose back (GPU kernel) ===
-        attn_2d = cuda.transpose_from_attention(
+        attn_4d = cuda.transpose_from_attention(
             attn_out_gpu, batch_size, self.num_heads, seq_len, self.head_dim
         )
+        # Reshape [B,S,H,D] -> [B*S, H*D] for linear
+        attn_2d = cuda.reshape_4d_to_2d(attn_4d, batch_size, seq_len, self.hidden_size)
 
         # === Output Projection (GPU cuBLAS) ===
         projected_gpu = cuda.linear_gpu(

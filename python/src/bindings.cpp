@@ -1596,6 +1596,23 @@ PYBIND11_MODULE(_zenith_core, m) {
       py::arg("input"), py::arg("batch"), py::arg("heads"), py::arg("seq"),
       py::arg("dim"), "Transpose [B,H,S,D] -> [B,S,H,D] from attention");
 
+  // Reshape 4D to 2D: [batch, seq, heads, dim] -> [batch*seq, heads*dim]
+  cuda.def(
+      "reshape_4d_to_2d",
+      [](zenith::GpuTensor &input, int batch, int seq, int hidden) {
+        if (!input.is_valid()) {
+          throw std::runtime_error("reshape_4d_to_2d needs valid tensor");
+        }
+        zenith::Shape out_shape({batch * seq, hidden});
+        zenith::GpuTensor output(out_shape);
+        cudaMemcpy(output.data_ptr<float>(), input.data_ptr<float>(),
+                   batch * seq * hidden * sizeof(float),
+                   cudaMemcpyDeviceToDevice);
+        return output;
+      },
+      py::arg("input"), py::arg("batch"), py::arg("seq"), py::arg("hidden"),
+      "Reshape [B,S,H,D] -> [B*S, H*D]");
+
   cuda.def("has_cudnn", []() { return true; });
 #else
   cuda.def("has_cudnn", []() { return false; });
