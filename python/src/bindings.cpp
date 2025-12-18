@@ -1445,12 +1445,10 @@ PYBIND11_MODULE(_zenith_core, m) {
         // Add bias if valid
         if (bias.is_valid() && bias.dim(0) == N) {
           // Broadcast add bias to each row
-          int blocks = (M * N + 255) / 256;
           float *out_ptr = output.data_ptr<float>();
           const float *bias_ptr = bias.data_ptr<float>();
-          // Simple bias add with kernel
           zenith::cuda_kernels::add_bias_f32(out_ptr, bias_ptr, M, N);
-          cudaDeviceSynchronize();
+          // No sync - let caller sync after full forward pass
         }
 
         return output;
