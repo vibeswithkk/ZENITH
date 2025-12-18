@@ -1639,12 +1639,28 @@ PYBIND11_MODULE(_zenith_core, m) {
         int dim = Q.dim(3);
         int total = batch * heads * seq * dim;
 
-        // Allocate FP16 buffers
-        __half *Q_fp16, *K_fp16, *V_fp16, *O_fp16;
-        cudaMalloc(&Q_fp16, total * sizeof(__half));
-        cudaMalloc(&K_fp16, total * sizeof(__half));
-        cudaMalloc(&V_fp16, total * sizeof(__half));
-        cudaMalloc(&O_fp16, total * sizeof(__half));
+        // Use pre-allocated workspace to avoid malloc/free overhead
+        // Static buffers grow as needed (never shrink)
+        static __half *Q_fp16 = nullptr, *K_fp16 = nullptr;
+        static __half *V_fp16 = nullptr, *O_fp16 = nullptr;
+        static size_t allocated_size = 0;
+
+        size_t needed_size = total * sizeof(__half);
+        if (needed_size > allocated_size) {
+          // Free old buffers if they exist
+          if (Q_fp16) {
+            cudaFree(Q_fp16);
+            cudaFree(K_fp16);
+            cudaFree(V_fp16);
+            cudaFree(O_fp16);
+          }
+          // Allocate new larger buffers
+          cudaMalloc(&Q_fp16, needed_size);
+          cudaMalloc(&K_fp16, needed_size);
+          cudaMalloc(&V_fp16, needed_size);
+          cudaMalloc(&O_fp16, needed_size);
+          allocated_size = needed_size;
+        }
 
         // Convert to FP16
         zenith::fp16_ops::convert_fp32_to_fp16(Q.data_ptr<float>(), Q_fp16,
@@ -1663,12 +1679,7 @@ PYBIND11_MODULE(_zenith_core, m) {
         zenith::fp16_ops::convert_fp16_to_fp32(O_fp16, output.data_ptr<float>(),
                                                total);
 
-        // Free FP16 buffers
-        cudaFree(Q_fp16);
-        cudaFree(K_fp16);
-        cudaFree(V_fp16);
-        cudaFree(O_fp16);
-
+        // Workspace is reused, no free needed
         return output;
       },
       py::arg("Q"), py::arg("K"), py::arg("V"),
