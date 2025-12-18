@@ -14,6 +14,7 @@
 #include "types.hpp"
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace zenith {
 namespace quantization {
