@@ -4,6 +4,9 @@
 #include <gtest/gtest.h>
 #include <zenith/zenith.hpp>
 
+// Helper to create empty descriptors
+std::vector<zenith::TensorDescriptor> empty_desc() { return {}; }
+
 // ============================================================================
 // GraphIR Tests
 // ============================================================================
@@ -27,7 +30,12 @@ TEST(GraphIRTest, AddNode) {
   zenith::TensorDescriptor output("y", zenith::Shape{1, 10},
                                   zenith::DataType::Float32);
 
-  auto *node = graph.add_node(zenith::ops::RELU, "relu1", {input}, {output});
+  std::vector<zenith::TensorDescriptor> inputs = {input};
+  std::vector<zenith::TensorDescriptor> outputs = {output};
+
+  auto *node =
+      graph.add_node(std::string(zenith::ops::RELU), std::string("relu1"),
+                     std::move(inputs), std::move(outputs));
 
   EXPECT_EQ(graph.num_nodes(), 1);
   EXPECT_NE(node, nullptr);
@@ -37,8 +45,10 @@ TEST(GraphIRTest, AddNode) {
 TEST(GraphIRTest, GetNodeByName) {
   zenith::GraphIR graph("test");
 
-  graph.add_node(zenith::ops::RELU, "relu1", {}, {});
-  graph.add_node(zenith::ops::SIGMOID, "sigmoid1", {}, {});
+  graph.add_node(std::string(zenith::ops::RELU), std::string("relu1"),
+                 empty_desc(), empty_desc());
+  graph.add_node(std::string(zenith::ops::SIGMOID), std::string("sigmoid1"),
+                 empty_desc(), empty_desc());
 
   auto *found = graph.get_node("relu1");
   EXPECT_NE(found, nullptr);
@@ -50,8 +60,10 @@ TEST(GraphIRTest, GetNodeByName) {
 
 TEST(GraphIRTest, RemoveNode) {
   zenith::GraphIR graph;
-  graph.add_node(zenith::ops::RELU, "relu1", {}, {});
-  graph.add_node(zenith::ops::SIGMOID, "sigmoid1", {}, {});
+  graph.add_node(std::string(zenith::ops::RELU), std::string("relu1"),
+                 empty_desc(), empty_desc());
+  graph.add_node(std::string(zenith::ops::SIGMOID), std::string("sigmoid1"),
+                 empty_desc(), empty_desc());
 
   EXPECT_EQ(graph.num_nodes(), 2);
 
@@ -84,10 +96,14 @@ TEST(GraphIRTest, InputsOutputs) {
 TEST(GraphIRTest, FindNodesByOp) {
   zenith::GraphIR graph;
 
-  graph.add_node(zenith::ops::CONV, "conv1", {}, {});
-  graph.add_node(zenith::ops::RELU, "relu1", {}, {});
-  graph.add_node(zenith::ops::CONV, "conv2", {}, {});
-  graph.add_node(zenith::ops::RELU, "relu2", {}, {});
+  graph.add_node(std::string(zenith::ops::CONV), std::string("conv1"),
+                 empty_desc(), empty_desc());
+  graph.add_node(std::string(zenith::ops::RELU), std::string("relu1"),
+                 empty_desc(), empty_desc());
+  graph.add_node(std::string(zenith::ops::CONV), std::string("conv2"),
+                 empty_desc(), empty_desc());
+  graph.add_node(std::string(zenith::ops::RELU), std::string("relu2"),
+                 empty_desc(), empty_desc());
 
   auto convs = graph.find_nodes_by_op(zenith::ops::CONV);
   EXPECT_EQ(convs.size(), 2);
@@ -102,9 +118,12 @@ TEST(GraphIRTest, FindNodesByOp) {
 TEST(GraphIRTest, CountOps) {
   zenith::GraphIR graph;
 
-  graph.add_node(zenith::ops::CONV, "conv1", {}, {});
-  graph.add_node(zenith::ops::CONV, "conv2", {}, {});
-  graph.add_node(zenith::ops::RELU, "relu1", {}, {});
+  graph.add_node(std::string(zenith::ops::CONV), std::string("conv1"),
+                 empty_desc(), empty_desc());
+  graph.add_node(std::string(zenith::ops::CONV), std::string("conv2"),
+                 empty_desc(), empty_desc());
+  graph.add_node(std::string(zenith::ops::RELU), std::string("relu1"),
+                 empty_desc(), empty_desc());
 
   auto counts = graph.count_ops();
 
@@ -122,7 +141,8 @@ TEST(GraphIRTest, ValidationFailsOnEmpty) {
 
 TEST(GraphIRTest, ValidationFailsOnNoInputs) {
   zenith::GraphIR graph;
-  graph.add_node(zenith::ops::RELU, "relu1", {}, {});
+  graph.add_node(std::string(zenith::ops::RELU), std::string("relu1"),
+                 empty_desc(), empty_desc());
 
   auto status = graph.validate();
   EXPECT_FALSE(status.ok());
@@ -138,7 +158,12 @@ TEST(GraphIRTest, ValidationPassesOnValidGraph) {
 
   graph.add_input(input);
   graph.add_output(output);
-  graph.add_node(zenith::ops::RELU, "relu1", {input}, {output});
+
+  std::vector<zenith::TensorDescriptor> inputs = {input};
+  std::vector<zenith::TensorDescriptor> outputs = {output};
+
+  graph.add_node(std::string(zenith::ops::RELU), std::string("relu1"),
+                 std::move(inputs), std::move(outputs));
 
   auto status = graph.validate();
   EXPECT_TRUE(status.ok());
@@ -150,7 +175,8 @@ TEST(GraphIRTest, Clone) {
                                               zenith::DataType::Float32));
   original.add_output(zenith::TensorDescriptor("out", zenith::Shape{1},
                                                zenith::DataType::Float32));
-  original.add_node(zenith::ops::IDENTITY, "id1", {}, {});
+  original.add_node(std::string(zenith::ops::IDENTITY), std::string("id1"),
+                    empty_desc(), empty_desc());
 
   auto cloned = original.clone();
 
@@ -166,7 +192,8 @@ TEST(GraphIRTest, Summary) {
                                            zenith::DataType::Float32));
   graph.add_output(zenith::TensorDescriptor("out", zenith::Shape{1},
                                             zenith::DataType::Float32));
-  graph.add_node(zenith::ops::CONV, "conv1", {}, {});
+  graph.add_node(std::string(zenith::ops::CONV), std::string("conv1"),
+                 empty_desc(), empty_desc());
 
   std::string summary = graph.summary();
 
