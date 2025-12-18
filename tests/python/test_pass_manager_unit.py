@@ -260,8 +260,8 @@ class TestProfiler:
             with profiler.measure("op1", "Add"):
                 pass
 
-        summary = profiler.summary()
-        assert isinstance(summary, str)
+        summary = profiler.get_summary()
+        assert isinstance(summary, dict)
 
 
 class TestOptimizationIntegration:

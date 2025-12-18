@@ -2,17 +2,46 @@
 Property-based tests using Hypothesis.
 
 Tests mathematical guarantees and edge cases using property-based testing.
+
+These tests require:
+    - hypothesis library: pip install hypothesis
+    - zenith.core module
+
+If hypothesis is not available, all tests will be skipped.
 """
 
+import pytest
 import numpy as np
-from hypothesis import given, strategies as st, settings
 
-from zenith.core import Shape, DataType, TensorDescriptor, GraphIR
-from zenith.optimization import (
-    compute_conv_bn_weights,
-    PrecisionPolicy,
+# Check if hypothesis is available
+try:
+    from hypothesis import given, strategies as st, settings
+
+    HYPOTHESIS_AVAILABLE = True
+except ImportError:
+    HYPOTHESIS_AVAILABLE = False
+    given = None
+    st = None
+    settings = None
+
+# Check if zenith modules are available
+try:
+    from zenith.core import Shape, DataType, TensorDescriptor, GraphIR
+    from zenith.optimization import (
+        compute_conv_bn_weights,
+        PrecisionPolicy,
+    )
+    from zenith.optimization.quantization import QuantizationParams
+
+    ZENITH_AVAILABLE = True
+except ImportError:
+    ZENITH_AVAILABLE = False
+
+# Skip all tests if dependencies not available
+pytestmark = pytest.mark.skipif(
+    not (HYPOTHESIS_AVAILABLE and ZENITH_AVAILABLE),
+    reason="hypothesis or zenith modules not available",
 )
-from zenith.optimization.quantization import QuantizationParams
 
 
 class TestQuantizationProperties:

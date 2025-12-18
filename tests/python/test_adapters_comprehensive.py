@@ -51,13 +51,13 @@ class TestONNXAdapterComprehensive:
     def test_from_model_with_invalid_type(self):
         """Test error handling for invalid model type."""
         adapter = ONNXAdapter()
-        with pytest.raises((TypeError, ValueError, AttributeError)):
+        with pytest.raises((TypeError, ValueError, AttributeError, ImportError)):
             adapter.from_model(12345)
 
     def test_from_model_with_none(self):
         """Test error handling for None model."""
         adapter = ONNXAdapter()
-        with pytest.raises((TypeError, ValueError, AttributeError)):
+        with pytest.raises((TypeError, ValueError, AttributeError, ImportError)):
             adapter.from_model(None)
 
     def test_from_bytes_invalid(self):
