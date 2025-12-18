@@ -10,6 +10,7 @@
 #include "graph_ir.hpp"
 #include "types.hpp"
 #include <cstdint>
+#include <cstring>
 #include <fstream>
 #include <sstream>
 #include <string>
