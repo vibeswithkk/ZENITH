@@ -1343,7 +1343,7 @@ PYBIND11_MODULE(_zenith_core, m) {
 
         zenith::cuda_kernels::gelu_f32(input.data_ptr<float>(),
                                        output.data_ptr<float>(), size);
-        cudaDeviceSynchronize();
+        // No sync - let caller sync after full forward pass
 
         return output;
       },
@@ -1368,7 +1368,7 @@ PYBIND11_MODULE(_zenith_core, m) {
             input.data_ptr<float>(), output.data_ptr<float>(),
             gamma.data_ptr<float>(), beta.data_ptr<float>(), batch, hidden,
             static_cast<float>(eps));
-        cudaDeviceSynchronize();
+        // No sync - let caller sync after full forward pass
 
         return output;
       },
