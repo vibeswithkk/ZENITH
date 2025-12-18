@@ -46,9 +46,9 @@ TEST(GraphIRTest, GetNodeByName) {
   zenith::GraphIR graph("test");
 
   graph.add_node(std::string(zenith::ops::RELU), std::string("relu1"),
-                 empty_desc(), empty_desc());
+                 empty_desc(), empty_desc(), zenith::AttributeMap{});
   graph.add_node(std::string(zenith::ops::SIGMOID), std::string("sigmoid1"),
-                 empty_desc(), empty_desc());
+                 empty_desc(), empty_desc(), zenith::AttributeMap{});
 
   auto *found = graph.get_node("relu1");
   EXPECT_NE(found, nullptr);
@@ -61,9 +61,9 @@ TEST(GraphIRTest, GetNodeByName) {
 TEST(GraphIRTest, RemoveNode) {
   zenith::GraphIR graph;
   graph.add_node(std::string(zenith::ops::RELU), std::string("relu1"),
-                 empty_desc(), empty_desc());
+                 empty_desc(), empty_desc(), zenith::AttributeMap{});
   graph.add_node(std::string(zenith::ops::SIGMOID), std::string("sigmoid1"),
-                 empty_desc(), empty_desc());
+                 empty_desc(), empty_desc(), zenith::AttributeMap{});
 
   EXPECT_EQ(graph.num_nodes(), 2);
 
@@ -97,13 +97,13 @@ TEST(GraphIRTest, FindNodesByOp) {
   zenith::GraphIR graph;
 
   graph.add_node(std::string(zenith::ops::CONV), std::string("conv1"),
-                 empty_desc(), empty_desc());
+                 empty_desc(), empty_desc(), zenith::AttributeMap{});
   graph.add_node(std::string(zenith::ops::RELU), std::string("relu1"),
-                 empty_desc(), empty_desc());
+                 empty_desc(), empty_desc(), zenith::AttributeMap{});
   graph.add_node(std::string(zenith::ops::CONV), std::string("conv2"),
-                 empty_desc(), empty_desc());
+                 empty_desc(), empty_desc(), zenith::AttributeMap{});
   graph.add_node(std::string(zenith::ops::RELU), std::string("relu2"),
-                 empty_desc(), empty_desc());
+                 empty_desc(), empty_desc(), zenith::AttributeMap{});
 
   auto convs = graph.find_nodes_by_op(zenith::ops::CONV);
   EXPECT_EQ(convs.size(), 2);
@@ -119,11 +119,11 @@ TEST(GraphIRTest, CountOps) {
   zenith::GraphIR graph;
 
   graph.add_node(std::string(zenith::ops::CONV), std::string("conv1"),
-                 empty_desc(), empty_desc());
+                 empty_desc(), empty_desc(), zenith::AttributeMap{});
   graph.add_node(std::string(zenith::ops::CONV), std::string("conv2"),
-                 empty_desc(), empty_desc());
+                 empty_desc(), empty_desc(), zenith::AttributeMap{});
   graph.add_node(std::string(zenith::ops::RELU), std::string("relu1"),
-                 empty_desc(), empty_desc());
+                 empty_desc(), empty_desc(), zenith::AttributeMap{});
 
   auto counts = graph.count_ops();
 
@@ -142,7 +142,7 @@ TEST(GraphIRTest, ValidationFailsOnEmpty) {
 TEST(GraphIRTest, ValidationFailsOnNoInputs) {
   zenith::GraphIR graph;
   graph.add_node(std::string(zenith::ops::RELU), std::string("relu1"),
-                 empty_desc(), empty_desc());
+                 empty_desc(), empty_desc(), zenith::AttributeMap{});
 
   auto status = graph.validate();
   EXPECT_FALSE(status.ok());
@@ -176,7 +176,7 @@ TEST(GraphIRTest, Clone) {
   original.add_output(zenith::TensorDescriptor("out", zenith::Shape{1},
                                                zenith::DataType::Float32));
   original.add_node(std::string(zenith::ops::IDENTITY), std::string("id1"),
-                    empty_desc(), empty_desc());
+                    empty_desc(), empty_desc(), zenith::AttributeMap{});
 
   auto cloned = original.clone();
 
@@ -193,7 +193,7 @@ TEST(GraphIRTest, Summary) {
   graph.add_output(zenith::TensorDescriptor("out", zenith::Shape{1},
                                             zenith::DataType::Float32));
   graph.add_node(std::string(zenith::ops::CONV), std::string("conv1"),
-                 empty_desc(), empty_desc());
+                 empty_desc(), empty_desc(), zenith::AttributeMap{});
 
   std::string summary = graph.summary();
 

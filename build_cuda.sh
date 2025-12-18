@@ -34,7 +34,7 @@ cmake .. \
     -DCMAKE_BUILD_TYPE=Release \
     -DZENITH_BUILD_PYTHON=ON \
     -DZENITH_ENABLE_CUDA=ON \
-    -DZENITH_BUILD_TESTS=OFF \
+    -DZENITH_BUILD_TESTS=ON \
     -DCMAKE_CUDA_ARCHITECTURES=75 \
     -Dpybind11_DIR=$(python -c "import pybind11; print(pybind11.get_cmake_dir())")
 
