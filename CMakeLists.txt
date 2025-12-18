@@ -30,6 +30,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 option(ZENITH_BUILD_TESTS "Build test suite" ON)
 option(ZENITH_BUILD_PYTHON "Build Python bindings" ON)
 option(ZENITH_ENABLE_CUDA "Enable CUDA backend" OFF)
+option(ZENITH_ENABLE_ROCM "Enable ROCm/HIP backend for AMD GPUs" OFF)
 option(ZENITH_ENABLE_SIMD "Enable SIMD optimizations" ON)
 
 # ============================================================================

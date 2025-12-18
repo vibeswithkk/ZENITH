@@ -9,6 +9,9 @@
 set(ZENITH_CORE_HEADERS
     include/zenith/zenith.hpp
     include/zenith/types.hpp
+    include/zenith/rocm_backend.hpp
+    include/zenith/rocblas_ops.hpp
+    include/zenith/miopen_ops.hpp
     include/zenith/tensor.hpp
     include/zenith/node.hpp
     include/zenith/graph_ir.hpp
@@ -131,6 +134,42 @@ if(ZENITH_ENABLE_CUDA)
         message(STATUS "cuDNN found: ${CUDNN_LIBRARY}")
     else()
         message(STATUS "cuDNN not found, cuDNN ops will be disabled")
+    endif()
+endif()
+
+# ============================================================================
+# ROCm/HIP Linking
+# ============================================================================
+
+if(ZENITH_ENABLE_ROCM)
+    # Find HIP package
+    find_package(hip QUIET)
+    if(hip_FOUND)
+        target_compile_definitions(zenith_core PUBLIC ZENITH_HAS_ROCM)
+        target_link_libraries(zenith_core PUBLIC hip::device)
+        message(STATUS "HIP found and enabled")
+        
+        # Find rocBLAS
+        find_package(rocblas QUIET)
+        if(rocblas_FOUND)
+            target_compile_definitions(zenith_core PUBLIC ZENITH_HAS_ROCBLAS)
+            target_link_libraries(zenith_core PUBLIC roc::rocblas)
+            message(STATUS "rocBLAS found and enabled")
+        else()
+            message(STATUS "rocBLAS not found, rocBLAS ops will be disabled")
+        endif()
+        
+        # Find MIOpen
+        find_package(miopen QUIET)
+        if(miopen_FOUND)
+            target_compile_definitions(zenith_core PUBLIC ZENITH_HAS_MIOPEN)
+            target_link_libraries(zenith_core PUBLIC MIOpen)
+            message(STATUS "MIOpen found and enabled")
+        else()
+            message(STATUS "MIOpen not found, MIOpen ops will be disabled")
+        endif()
+    else()
+        message(WARNING "ROCm enabled but HIP not found. Install ROCm toolkit.")
     endif()
 endif()
 

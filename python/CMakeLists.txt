@@ -23,6 +23,27 @@ if(ZENITH_ENABLE_CUDA)
     endif()
 endif()
 
+# Link ROCm libraries if enabled
+if(ZENITH_ENABLE_ROCM)
+    find_package(hip QUIET)
+    if(hip_FOUND)
+        target_compile_definitions(_zenith_core PRIVATE ZENITH_HAS_ROCM)
+        target_link_libraries(_zenith_core PRIVATE hip::device)
+        
+        find_package(rocblas QUIET)
+        if(rocblas_FOUND)
+            target_compile_definitions(_zenith_core PRIVATE ZENITH_HAS_ROCBLAS)
+            target_link_libraries(_zenith_core PRIVATE roc::rocblas)
+        endif()
+        
+        find_package(miopen QUIET)
+        if(miopen_FOUND)
+            target_compile_definitions(_zenith_core PRIVATE ZENITH_HAS_MIOPEN)
+            target_link_libraries(_zenith_core PRIVATE MIOpen)
+        endif()
+    endif()
+endif()
+
 # Set output directory
 set_target_properties(_zenith_core PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python/zenith"
@@ -32,4 +53,3 @@ set_target_properties(_zenith_core PROPERTIES
 install(TARGETS _zenith_core
     LIBRARY DESTINATION lib/python/zenith
 )
-

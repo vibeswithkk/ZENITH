@@ -27,6 +27,14 @@
 #endif
 #endif
 
+#ifdef ZENITH_HAS_ROCM
+#include <zenith/rocblas_ops.hpp>
+#include <zenith/rocm_backend.hpp>
+#ifdef ZENITH_HAS_MIOPEN
+#include <zenith/miopen_ops.hpp>
+#endif
+#endif
+
 namespace py = pybind11;
 
 // ============================================================================
@@ -552,6 +560,11 @@ PYBIND11_MODULE(_zenith_core, m) {
           available.push_back("cuda");
         }
 #endif
+#ifdef ZENITH_HAS_ROCM
+        if (zenith::rocblas_ops::is_rocblas_available()) {
+          available.push_back("rocm");
+        }
+#endif
         return available;
       },
       "List all available backends");
@@ -566,6 +579,17 @@ PYBIND11_MODULE(_zenith_core, m) {
 #endif
       },
       "Check if CUDA backend is available");
+
+  backends.def(
+      "is_rocm_available",
+      []() {
+#ifdef ZENITH_HAS_ROCM
+        return zenith::rocblas_ops::is_rocblas_available();
+#else
+        return false;
+#endif
+      },
+      "Check if ROCm backend is available");
 
   backends.def(
       "is_cudnn_available",
@@ -1919,4 +1943,113 @@ PYBIND11_MODULE(_zenith_core, m) {
 #endif
 
 #endif // ZENITH_HAS_CUDA
+
+  // ========================================================================
+  // ROCm Backend Submodule
+  // ========================================================================
+#ifdef ZENITH_HAS_ROCM
+  auto rocm =
+      m.def_submodule("rocm", "ROCm/HIP accelerated operations for AMD GPUs");
+
+  rocm.def(
+      "is_available",
+      []() {
+#ifdef ZENITH_HAS_ROCBLAS
+        return zenith::rocblas_ops::is_rocblas_available();
+#else
+        return false;
+#endif
+      },
+      "Check if ROCm backend is available");
+
+  rocm.def(
+      "get_version",
+      []() {
+#ifdef ZENITH_HAS_ROCBLAS
+        return zenith::rocblas_ops::get_rocblas_version();
+#else
+        return 0;
+#endif
+      },
+      "Get ROCm/rocBLAS version");
+
+#ifdef ZENITH_HAS_ROCBLAS
+  rocm.def(
+      "matmul",
+      [](py::array_t<float> A, py::array_t<float> B) {
+        auto buf_a = A.request();
+        auto buf_b = B.request();
+
+        if (buf_a.ndim != 2 || buf_b.ndim != 2) {
+          throw std::runtime_error("matmul requires 2D arrays");
+        }
+
+        int M = buf_a.shape[0];
+        int K = buf_a.shape[1];
+        int K2 = buf_b.shape[0];
+        int N = buf_b.shape[1];
+
+        if (K != K2) {
+          throw std::runtime_error("Inner dimensions do not match");
+        }
+
+        // Allocate device memory
+        float *d_A, *d_B, *d_C;
+        hipMalloc(&d_A, M * K * sizeof(float));
+        hipMalloc(&d_B, K * N * sizeof(float));
+        hipMalloc(&d_C, M * N * sizeof(float));
+
+        // Copy to device
+        hipMemcpy(d_A, buf_a.ptr, M * K * sizeof(float), hipMemcpyHostToDevice);
+        hipMemcpy(d_B, buf_b.ptr, K * N * sizeof(float), hipMemcpyHostToDevice);
+
+        // Call rocBLAS
+        auto status = zenith::rocblas_ops::gemm_f32(d_A, d_B, d_C, M, N, K);
+
+        // Allocate output and copy back
+        auto result = py::array_t<float>({M, N});
+        auto buf_c = result.request();
+        hipMemcpy(buf_c.ptr, d_C, M * N * sizeof(float), hipMemcpyDeviceToHost);
+
+        // Free device memory
+        hipFree(d_A);
+        hipFree(d_B);
+        hipFree(d_C);
+
+        if (!status.ok()) {
+          throw std::runtime_error("rocBLAS matmul failed: " +
+                                   status.message());
+        }
+
+        return result;
+      },
+      py::arg("A"), py::arg("B"), "Matrix multiplication using rocBLAS");
+
+  rocm.def(
+      "sync", []() { hipDeviceSynchronize(); }, "Synchronize GPU with CPU");
+#endif // ZENITH_HAS_ROCBLAS
+
+#ifdef ZENITH_HAS_MIOPEN
+  rocm.def(
+      "is_miopen_available",
+      []() { return zenith::miopen::is_miopen_available(); },
+      "Check if MIOpen is available");
+
+  rocm.def(
+      "get_miopen_version",
+      []() { return zenith::miopen::get_miopen_version(); },
+      "Get MIOpen version");
+#else
+  rocm.def("is_miopen_available", []() { return false; });
+  rocm.def("get_miopen_version", []() { return 0; });
+#endif
+
+#else
+  // Stub ROCm module when not compiled
+  auto rocm = m.def_submodule("rocm", "ROCm backend (not available)");
+  rocm.def("is_available", []() { return false; });
+  rocm.def("get_version", []() { return 0; });
+  rocm.def("is_miopen_available", []() { return false; });
+  rocm.def("get_miopen_version", []() { return 0; });
+#endif // ZENITH_HAS_ROCM
 }
