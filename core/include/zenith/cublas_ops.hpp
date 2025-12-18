@@ -39,6 +39,9 @@ public:
       if (status != CUBLAS_STATUS_SUCCESS) {
         return nullptr;
       }
+      // Enable TF32 Tensor Core math for ~3x FP32 speedup on Ampere+
+      // This uses Tensor Cores with TF32 precision (19-bit mantissa)
+      cublasSetMathMode(handle_, CUBLAS_TF32_TENSOR_OP_MATH);
       initialized_ = true;
     }
     return handle_;
