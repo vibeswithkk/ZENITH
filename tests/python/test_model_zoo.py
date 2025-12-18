@@ -15,10 +15,14 @@ try:
     print(f"\nCUDA available: {backends.is_cuda_available()}")
     print(f"cuDNN available: {backends.is_cudnn_available()}")
     print(f"cuDNN version: {backends.get_cudnn_version()}")
+    CUDA_AVAILABLE = True
 except ImportError as e:
     print(f"Zenith not built with CUDA: {e}")
-    print("Run: !bash build_cuda.sh")
-    exit(1)
+    print("Skipping CUDA-dependent tests...")
+    CUDA_AVAILABLE = False
+    import pytest
+
+    pytestmark = pytest.mark.skip(reason="zenith._zenith_core not available")
 
 
 def test_passed(name):

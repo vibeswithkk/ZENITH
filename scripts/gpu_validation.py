@@ -280,7 +280,9 @@ int main() {
         f.write(cuda_code)
 
     print("Compiling CUDA test...")
-    result = run_cmd("nvcc -o test_cuda_fixed test_cuda_fixed.cu -O3", check=False)
+    result = run_cmd(
+        "nvcc -o test_cuda_fixed test_cuda_fixed.cu -O3 -arch=sm_75", check=False
+    )
 
     if result.returncode == 0:
         print("\nRunning CUDA test...")
