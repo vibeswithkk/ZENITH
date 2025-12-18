@@ -16,6 +16,7 @@
 #include <zenith/cuda_backend.hpp>
 #include <zenith/cuda_kernels.hpp>    // For GELU, LayerNorm, Softmax
 #include <zenith/flash_attention.hpp> // FlashAttention for Transformer
+#include <zenith/fp16_kernels.hpp>    // FP16 Kernel Suite
 #include <zenith/fp16_ops.hpp>        // FP16 Tensor Core operations
 #include <zenith/gpu_tensor.hpp>
 #ifdef ZENITH_HAS_CUDNN
@@ -1669,6 +1670,225 @@ PYBIND11_MODULE(_zenith_core, m) {
       },
       py::arg("Q"), py::arg("K"), py::arg("V"),
       "FP16 attention with Tensor Cores [batch, heads, seq, dim]");
+
+  // ==========================================================================
+  // Full FP16 Kernel Suite Bindings
+  // ==========================================================================
+
+  // FP16 Linear with auto-conversion
+  cuda.def(
+      "linear_fp16_gpu",
+      [](zenith::GpuTensor &X, zenith::GpuTensor &W, zenith::GpuTensor &bias) {
+        if (!X.is_valid() || !W.is_valid()) {
+          throw std::runtime_error("linear_fp16_gpu requires valid tensors");
+        }
+        if (X.ndim() != 2 || W.ndim() != 2) {
+          throw std::runtime_error("linear_fp16_gpu requires 2D tensors");
+        }
+
+        int M = X.dim(0); // batch * seq
+        int K = X.dim(1); // input features
+        int N = W.dim(0); // output features
+
+        // Allocate FP16 buffers
+        __half *X_fp16, *W_fp16, *Y_fp16, *bias_fp16 = nullptr;
+        int total_x = M * K;
+        int total_w = N * K;
+        int total_y = M * N;
+
+        cudaMalloc(&X_fp16, total_x * sizeof(__half));
+        cudaMalloc(&W_fp16, total_w * sizeof(__half));
+        cudaMalloc(&Y_fp16, total_y * sizeof(__half));
+
+        if (bias.is_valid() && bias.dim(0) == N) {
+          cudaMalloc(&bias_fp16, N * sizeof(__half));
+          zenith::fp16_kernels::convert_f32_to_f16(bias.data_ptr<float>(),
+                                                   bias_fp16, N);
+        }
+
+        // Convert inputs to FP16
+        zenith::fp16_kernels::convert_f32_to_f16(X.data_ptr<float>(), X_fp16,
+                                                 total_x);
+        zenith::fp16_kernels::convert_f32_to_f16(W.data_ptr<float>(), W_fp16,
+                                                 total_w);
+
+        // Run FP16 linear
+        zenith::fp16_kernels::linear_fp16(X_fp16, W_fp16, bias_fp16, Y_fp16, M,
+                                          N, K);
+        cudaDeviceSynchronize();
+
+        // Allocate output and convert back
+        zenith::Shape out_shape({M, N});
+        zenith::GpuTensor output(out_shape);
+        zenith::fp16_kernels::convert_f16_to_f32(
+            Y_fp16, output.data_ptr<float>(), total_y);
+
+        // Cleanup
+        cudaFree(X_fp16);
+        cudaFree(W_fp16);
+        cudaFree(Y_fp16);
+        if (bias_fp16)
+          cudaFree(bias_fp16);
+
+        return output;
+      },
+      py::arg("X"), py::arg("W"), py::arg("bias"),
+      "FP16 Linear with Tensor Cores: Y = X @ W^T + bias");
+
+  // FP16 GELU activation
+  cuda.def(
+      "gelu_fp16_gpu",
+      [](zenith::GpuTensor &input) {
+        if (!input.is_valid()) {
+          throw std::runtime_error("gelu_fp16_gpu requires valid tensor");
+        }
+
+        int size = input.numel();
+
+        __half *in_fp16, *out_fp16;
+        cudaMalloc(&in_fp16, size * sizeof(__half));
+        cudaMalloc(&out_fp16, size * sizeof(__half));
+
+        zenith::fp16_kernels::convert_f32_to_f16(input.data_ptr<float>(),
+                                                 in_fp16, size);
+        zenith::fp16_kernels::gelu_fp16(in_fp16, out_fp16, size);
+
+        zenith::GpuTensor output(input.shape());
+        zenith::fp16_kernels::convert_f16_to_f32(
+            out_fp16, output.data_ptr<float>(), size);
+
+        cudaFree(in_fp16);
+        cudaFree(out_fp16);
+        return output;
+      },
+      py::arg("input"), "FP16 GELU activation");
+
+  // FP16 LayerNorm with FP32 stats
+  cuda.def(
+      "layernorm_fp16_gpu",
+      [](zenith::GpuTensor &input, zenith::GpuTensor &gamma,
+         zenith::GpuTensor &beta, double eps) {
+        if (!input.is_valid() || !gamma.is_valid() || !beta.is_valid()) {
+          throw std::runtime_error("layernorm_fp16_gpu requires valid tensors");
+        }
+        if (input.ndim() != 2) {
+          throw std::runtime_error("layernorm_fp16_gpu requires 2D input");
+        }
+
+        int batch = input.dim(0);
+        int hidden = input.dim(1);
+        int total = batch * hidden;
+
+        __half *in_fp16, *out_fp16, *gamma_fp16, *beta_fp16;
+        cudaMalloc(&in_fp16, total * sizeof(__half));
+        cudaMalloc(&out_fp16, total * sizeof(__half));
+        cudaMalloc(&gamma_fp16, hidden * sizeof(__half));
+        cudaMalloc(&beta_fp16, hidden * sizeof(__half));
+
+        zenith::fp16_kernels::convert_f32_to_f16(input.data_ptr<float>(),
+                                                 in_fp16, total);
+        zenith::fp16_kernels::convert_f32_to_f16(gamma.data_ptr<float>(),
+                                                 gamma_fp16, hidden);
+        zenith::fp16_kernels::convert_f32_to_f16(beta.data_ptr<float>(),
+                                                 beta_fp16, hidden);
+
+        zenith::fp16_kernels::layernorm_fp16(in_fp16, out_fp16, gamma_fp16,
+                                             beta_fp16, batch, hidden,
+                                             static_cast<float>(eps));
+        cudaDeviceSynchronize();
+
+        zenith::GpuTensor output(input.shape());
+        zenith::fp16_kernels::convert_f16_to_f32(
+            out_fp16, output.data_ptr<float>(), total);
+
+        cudaFree(in_fp16);
+        cudaFree(out_fp16);
+        cudaFree(gamma_fp16);
+        cudaFree(beta_fp16);
+        return output;
+      },
+      py::arg("input"), py::arg("gamma"), py::arg("beta"),
+      py::arg("eps") = 1e-5, "FP16 LayerNorm with FP32 stats for stability");
+
+  // FP16 Add for residual
+  cuda.def(
+      "add_fp16_gpu",
+      [](zenith::GpuTensor &a, zenith::GpuTensor &b) {
+        if (!a.is_valid() || !b.is_valid()) {
+          throw std::runtime_error("add_fp16_gpu requires valid tensors");
+        }
+
+        int size = a.numel();
+
+        __half *a_fp16, *b_fp16, *c_fp16;
+        cudaMalloc(&a_fp16, size * sizeof(__half));
+        cudaMalloc(&b_fp16, size * sizeof(__half));
+        cudaMalloc(&c_fp16, size * sizeof(__half));
+
+        zenith::fp16_kernels::convert_f32_to_f16(a.data_ptr<float>(), a_fp16,
+                                                 size);
+        zenith::fp16_kernels::convert_f32_to_f16(b.data_ptr<float>(), b_fp16,
+                                                 size);
+        zenith::fp16_kernels::add_fp16(a_fp16, b_fp16, c_fp16, size);
+
+        zenith::GpuTensor output(a.shape());
+        zenith::fp16_kernels::convert_f16_to_f32(
+            c_fp16, output.data_ptr<float>(), size);
+
+        cudaFree(a_fp16);
+        cudaFree(b_fp16);
+        cudaFree(c_fp16);
+        return output;
+      },
+      py::arg("a"), py::arg("b"), "FP16 element-wise add");
+
+  // Full FP16 Attention
+  cuda.def(
+      "attention_full_fp16_gpu",
+      [](zenith::GpuTensor &Q, zenith::GpuTensor &K, zenith::GpuTensor &V) {
+        if (!Q.is_valid() || !K.is_valid() || !V.is_valid()) {
+          throw std::runtime_error(
+              "attention_full_fp16_gpu requires valid tensors");
+        }
+        if (Q.ndim() != 4) {
+          throw std::runtime_error(
+              "attention_full_fp16_gpu requires 4D tensors");
+        }
+
+        int batch = Q.dim(0);
+        int heads = Q.dim(1);
+        int seq = Q.dim(2);
+        int dim = Q.dim(3);
+        int total = batch * heads * seq * dim;
+
+        __half *Q_fp16, *K_fp16, *V_fp16, *O_fp16;
+        cudaMalloc(&Q_fp16, total * sizeof(__half));
+        cudaMalloc(&K_fp16, total * sizeof(__half));
+        cudaMalloc(&V_fp16, total * sizeof(__half));
+        cudaMalloc(&O_fp16, total * sizeof(__half));
+
+        zenith::fp16_kernels::convert_f32_to_f16(Q.data_ptr<float>(), Q_fp16,
+                                                 total);
+        zenith::fp16_kernels::convert_f32_to_f16(K.data_ptr<float>(), K_fp16,
+                                                 total);
+        zenith::fp16_kernels::convert_f32_to_f16(V.data_ptr<float>(), V_fp16,
+                                                 total);
+
+        zenith::fp16_kernels::attention_fp16(Q_fp16, K_fp16, V_fp16, O_fp16,
+                                             batch, heads, seq, dim);
+
+        zenith::GpuTensor output(Q.shape());
+        zenith::fp16_kernels::convert_f16_to_f32(
+            O_fp16, output.data_ptr<float>(), total);
+
+        cudaFree(Q_fp16);
+        cudaFree(K_fp16);
+        cudaFree(V_fp16);
+        cudaFree(O_fp16);
+        return output;
+      },
+      py::arg("Q"), py::arg("K"), py::arg("V"),
+      "Full FP16 attention with improved kernel suite");
 
   cuda.def("has_cudnn", []() { return true; });
 #else
