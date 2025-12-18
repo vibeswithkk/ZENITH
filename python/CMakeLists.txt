@@ -51,5 +51,5 @@ set_target_properties(_zenith_core PROPERTIES
 
 # Install Python module
 install(TARGETS _zenith_core
-    LIBRARY DESTINATION lib/python/zenith
+    LIBRARY DESTINATION zenith
 )

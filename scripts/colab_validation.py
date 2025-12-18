@@ -27,6 +27,15 @@ def check_installation():
         print(f"✅ pyzenith imported successfully")
         print(f"   Version: {zenith.__version__}")
         print(f"   Path: {zenith.__file__}")
+
+        expected_version = "0.1.3"
+        if zenith.__version__ != expected_version:
+            print(
+                f"⚠️ WARNING: Expected version {expected_version}, but found {zenith.__version__}"
+            )
+            print("   Please run: !pip install pyzenith==0.1.3 --force-reinstall")
+            # logical continuation despite warning, but user should know
+
         return True
     except ImportError as e:
         print(f"❌ Failed to import pyzenith: {e}")
