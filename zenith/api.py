@@ -240,6 +240,33 @@ class CompiledModel:
         self.target = target
         self._original_model = original_model
         self._framework = None  # Lazy detection
+        self._interpreter = None  # ONNX Interpreter for native execution
+        self._use_interpreter = False
+
+        # Try to create interpreter for native execution
+        self._init_interpreter()
+
+    def _init_interpreter(self) -> None:
+        """Try to create an ONNX interpreter for native execution."""
+        try:
+            from .execution import ONNXInterpreter
+
+            # Only use interpreter if:
+            # 1. We have a valid graph
+            # 2. Graph has nodes
+            if self.graph_ir is not None and self.graph_ir.num_nodes() > 0:
+                self._interpreter = ONNXInterpreter(
+                    self.graph_ir,
+                    device=self.backend,
+                    strict=False,  # Allow fallback for unsupported ops
+                )
+                # Use interpreter only if all ops are supported
+                self._use_interpreter = self._interpreter.is_fully_supported
+
+        except Exception:
+            # Interpreter not available, use wrapper approach
+            self._interpreter = None
+            self._use_interpreter = False
 
     def _detect_framework(self) -> str:
         """Detect which ML framework the original model uses."""
@@ -259,9 +286,18 @@ class CompiledModel:
         """
         Execute the compiled model.
 
-        Currently delegates to the original model. Future versions will
-        use Zenith's optimized execution path.
+        Uses ONNX interpreter for native execution when all operators
+        are supported, otherwise delegates to the original model.
         """
+        # Try interpreter first (native Zenith execution)
+        if self._use_interpreter and self._interpreter is not None:
+            try:
+                return self._execute_via_interpreter(*args, **kwargs)
+            except Exception:
+                # Fallback to wrapper on interpreter failure
+                pass
+
+        # Fallback: delegate to original model
         if self._original_model is None:
             raise RuntimeError(
                 "No original model available for execution. "
@@ -320,6 +356,47 @@ class CompiledModel:
                     return self._original_model(*args, **kwargs)
 
         return self._original_model(*args, **kwargs)
+
+    def _execute_via_interpreter(self, *args, **kwargs):
+        """Execute model using native ONNX interpreter."""
+        import numpy as np
+
+        # Convert args to numpy
+        inputs_dict = {}
+        input_names = [inp.name for inp in self.graph_ir.inputs]
+
+        for i, arg in enumerate(args):
+            if i < len(input_names):
+                name = input_names[i]
+                if hasattr(arg, "numpy"):
+                    # PyTorch tensor
+                    inputs_dict[name] = arg.detach().cpu().numpy()
+                elif hasattr(arg, "data"):
+                    # TensorFlow tensor
+                    inputs_dict[name] = np.asarray(arg)
+                else:
+                    inputs_dict[name] = np.asarray(arg)
+
+        # Execute via interpreter
+        outputs = self._interpreter(**inputs_dict)
+
+        # Return first output (most common case)
+        if len(outputs) == 1:
+            output_val = list(outputs.values())[0]
+            # Convert back to framework tensor if needed
+            framework = self._detect_framework()
+            if framework == "pytorch":
+                import torch
+
+                device = "cuda" if self.backend == "cuda" else "cpu"
+                return torch.from_numpy(output_val).to(device)
+            elif framework == "tensorflow":
+                import tensorflow as tf
+
+                return tf.constant(output_val)
+            return output_val
+
+        return outputs
 
     def __repr__(self) -> str:
         return (
