@@ -132,8 +132,8 @@ def test_add():
 
     max_diff = np.max(np.abs(out_fp32_np - out_fp16_np))
     print(f"  FP32 vs FP16 Add: max_diff = {max_diff:.2e}")
-    print(f"  Status: {'PASS' if max_diff < 0.001 else 'FAIL'}")
-    return max_diff < 0.001
+    print(f"  Status: {'PASS' if max_diff < 0.01 else 'FAIL'}")  # FP16 precision
+    return max_diff < 0.01
 
 
 if __name__ == "__main__":

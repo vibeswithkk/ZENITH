@@ -63,7 +63,7 @@ void convert_f16_to_f32(const __half *input, float *output, int size) {
 }
 
 // ============================================================================
-// FP16 Linear: Y = X @ W^T + bias using Tensor Cores
+// FP16 Linear: Y = X @ W^T + bias using Tensor Cores with FP32 accumulation
 // ============================================================================
 
 __global__ void add_bias_fp16_kernel(__half *output, const __half *bias, int M,
@@ -79,22 +79,31 @@ void linear_fp16(const __half *X, const __half *W, const __half *bias,
                  __half *Y, int M, int N, int K) {
   cublasHandle_t handle = get_handle();
 
-  __half alpha = __float2half(1.0f);
-  __half beta = __float2half(0.0f);
+  // Use FP32 alpha/beta for CUBLAS_COMPUTE_32F
+  float alpha = 1.0f;
+  float beta = 0.0f;
 
   // Y = X @ W^T using cuBLAS (column-major)
-  // For row-major: C = A @ B^T becomes cublas(B, A^T) = B @ A^T = (A @ B^T)^T
-  cublasGemmEx(handle, CUBLAS_OP_T, CUBLAS_OP_N, N, M, K, // Output is [M, N]
-               &alpha, W, CUDA_R_16F, K, // W is [N, K], need transpose
-               X, CUDA_R_16F, K,         // X is [M, K]
+  // For row-major: C = A @ B^T
+  // cuBLAS layout: C = op(A) @ op(B) where matrices are column-major
+  // We have row-major, so: C_cm = B^T @ A (which gives A @ B in row-major)
+  // Y[M,N] = X[M,K] @ W^T[K,N] where W is [N,K]
+  cublasGemmEx(handle, CUBLAS_OP_T, CUBLAS_OP_N, // W^T, X
+               N, M, K,                  // Output columns, rows, inner dim
+               &alpha, W, CUDA_R_16F, K, // W is [N, K] stored column-major
+               X, CUDA_R_16F, K,         // X is [M, K] stored column-major
                &beta, Y, CUDA_R_16F, N,  // Y is [M, N]
-               CUBLAS_COMPUTE_16F, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+               CUBLAS_COMPUTE_32F,       // FP32 accumulation for accuracy!
+               CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+
+  cudaDeviceSynchronize();
 
   // Add bias if provided
   if (bias != nullptr) {
     int total = M * N;
     int blocks = (total + 255) / 256;
     add_bias_fp16_kernel<<<blocks, 256>>>(Y, bias, M, N);
+    cudaDeviceSynchronize();
   }
 }
 
