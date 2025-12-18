@@ -16,6 +16,7 @@
 #include <zenith/cuda_backend.hpp>
 #include <zenith/cuda_kernels.hpp>    // For GELU, LayerNorm, Softmax
 #include <zenith/flash_attention.hpp> // FlashAttention for Transformer
+#include <zenith/fp16_ops.hpp>        // FP16 Tensor Core operations
 #include <zenith/gpu_tensor.hpp>
 #ifdef ZENITH_HAS_CUDNN
 #include <zenith/cudnn_ops.hpp>
@@ -1612,6 +1613,62 @@ PYBIND11_MODULE(_zenith_core, m) {
       },
       py::arg("input"), py::arg("batch"), py::arg("seq"), py::arg("hidden"),
       "Reshape [B,S,H,D] -> [B*S, H*D]");
+
+  // ==========================================================================
+  // FP16 Operations with Tensor Cores
+  // ==========================================================================
+
+  // FP16 Attention (auto-convert from FP32)
+  cuda.def(
+      "attention_fp16_gpu",
+      [](zenith::GpuTensor &Q, zenith::GpuTensor &K, zenith::GpuTensor &V) {
+        if (!Q.is_valid() || !K.is_valid() || !V.is_valid()) {
+          throw std::runtime_error("attention_fp16_gpu requires valid tensors");
+        }
+        if (Q.ndim() != 4) {
+          throw std::runtime_error("attention_fp16_gpu requires 4D tensors");
+        }
+
+        int batch = Q.dim(0);
+        int heads = Q.dim(1);
+        int seq = Q.dim(2);
+        int dim = Q.dim(3);
+        int total = batch * heads * seq * dim;
+
+        // Allocate FP16 buffers
+        __half *Q_fp16, *K_fp16, *V_fp16, *O_fp16;
+        cudaMalloc(&Q_fp16, total * sizeof(__half));
+        cudaMalloc(&K_fp16, total * sizeof(__half));
+        cudaMalloc(&V_fp16, total * sizeof(__half));
+        cudaMalloc(&O_fp16, total * sizeof(__half));
+
+        // Convert to FP16
+        zenith::fp16_ops::convert_fp32_to_fp16(Q.data_ptr<float>(), Q_fp16,
+                                               total);
+        zenith::fp16_ops::convert_fp32_to_fp16(K.data_ptr<float>(), K_fp16,
+                                               total);
+        zenith::fp16_ops::convert_fp32_to_fp16(V.data_ptr<float>(), V_fp16,
+                                               total);
+
+        // Run FP16 attention with Tensor Cores
+        zenith::fp16_ops::attention_fp16_alloc(Q_fp16, K_fp16, V_fp16, O_fp16,
+                                               batch, heads, seq, dim);
+
+        // Create output and convert back to FP32
+        zenith::GpuTensor output(Q.shape());
+        zenith::fp16_ops::convert_fp16_to_fp32(O_fp16, output.data_ptr<float>(),
+                                               total);
+
+        // Free FP16 buffers
+        cudaFree(Q_fp16);
+        cudaFree(K_fp16);
+        cudaFree(V_fp16);
+        cudaFree(O_fp16);
+
+        return output;
+      },
+      py::arg("Q"), py::arg("K"), py::arg("V"),
+      "FP16 attention with Tensor Cores [batch, heads, seq, dim]");
 
   cuda.def("has_cudnn", []() { return true; });
 #else
