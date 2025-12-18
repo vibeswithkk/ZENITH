@@ -25,6 +25,15 @@
 #ifdef ZENITH_HAS_CUDNN
 #include <zenith/cudnn_ops.hpp>
 #endif
+
+// Forward declarations for fused kernels (defined in fused_kernels.cu)
+extern "C" {
+void fused_add_layernorm(const float *x, const float *residual,
+                         const float *gamma, const float *beta, float *output,
+                         int batch, int hidden, float eps);
+void fused_bias_gelu(const float *input, const float *bias, float *output,
+                     int batch, int features);
+}
 #endif
 
 #ifdef ZENITH_HAS_ROCM
@@ -1615,11 +1624,6 @@ PYBIND11_MODULE(_zenith_core, m) {
 
         zenith::GpuTensor output(x.shape());
 
-        // Call C-linkage fused kernel
-        extern void fused_add_layernorm(
-            const float *x, const float *residual, const float *gamma,
-            const float *beta, float *output, int batch, int hidden, float eps);
-
         fused_add_layernorm(x.data_ptr<float>(), residual.data_ptr<float>(),
                             gamma.data_ptr<float>(), beta.data_ptr<float>(),
                             output.data_ptr<float>(), batch, hidden, eps);
@@ -1648,10 +1652,6 @@ PYBIND11_MODULE(_zenith_core, m) {
         int features = input.dim(1);
 
         zenith::GpuTensor output(input.shape());
-
-        // Call C-linkage fused kernel
-        extern void fused_bias_gelu(const float *input, const float *bias,
-                                    float *output, int batch, int features);
 
         fused_bias_gelu(input.data_ptr<float>(), bias.data_ptr<float>(),
                         output.data_ptr<float>(), batch, features);
