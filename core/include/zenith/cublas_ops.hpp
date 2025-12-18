@@ -13,6 +13,7 @@
 
 #ifdef ZENITH_HAS_CUDA
 
+#include <atomic>
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
 #include <memory>
@@ -33,8 +34,14 @@ public:
   }
 
   cublasHandle_t get() {
+    // Fast path: already initialized, no lock needed
+    if (initialized_.load(std::memory_order_acquire)) {
+      return handle_;
+    }
+
+    // Slow path: need to initialize with lock
     std::lock_guard<std::mutex> lock(mutex_);
-    if (!initialized_) {
+    if (!initialized_.load(std::memory_order_relaxed)) {
       cublasStatus_t status = cublasCreate(&handle_);
       if (status != CUBLAS_STATUS_SUCCESS) {
         return nullptr;
@@ -42,15 +49,17 @@ public:
       // Enable TF32 Tensor Core math for ~3x FP32 speedup on Ampere+
       // This uses Tensor Cores with TF32 precision (19-bit mantissa)
       cublasSetMathMode(handle_, CUBLAS_TF32_TENSOR_OP_MATH);
-      initialized_ = true;
+      initialized_.store(true, std::memory_order_release);
     }
     return handle_;
   }
 
-  bool is_available() const { return initialized_ && handle_ != nullptr; }
+  bool is_available() const {
+    return initialized_.load(std::memory_order_acquire) && handle_ != nullptr;
+  }
 
   ~CublasHandle() {
-    if (initialized_ && handle_) {
+    if (initialized_.load(std::memory_order_acquire) && handle_) {
       cublasDestroy(handle_);
     }
   }
@@ -63,7 +72,7 @@ private:
   CublasHandle() : handle_(nullptr), initialized_(false) {}
 
   cublasHandle_t handle_;
-  bool initialized_;
+  std::atomic<bool> initialized_;
   mutable std::mutex mutex_;
 };
 
