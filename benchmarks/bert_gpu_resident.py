@@ -107,7 +107,8 @@ class BertEncoderFullGPU:
         Full GPU forward pass.
         x_gpu: GpuTensor [batch*seq, hidden_size]
         """
-        batch_seq = x_gpu.dim(0)
+        shape = x_gpu.shape()
+        batch_seq = shape[0]
         batch_size = 1  # Assuming batch=1 for now
         seq_len = batch_seq // batch_size
 
