@@ -9,10 +9,10 @@ description = "Cross-Platform ML Optimization Framework with ONNX Interpreter"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 authors = [
-    {name = "Wahyu Ardiansyah", email = "vibeswithkk@gmail.com"},
+    {name = "Wahyu Ardiansyah", email = "wahyuardiansyah1903@gmail.com"},
 ]
 maintainers = [
-    {name = "Wahyu Ardiansyah", email = "wahyu@zenith.dev"}
+    {name = "Wahyu Ardiansyah", email = "wahyuardiansyah1903@gmail.com"}
 ]
 keywords = [
     "machine-learning",
