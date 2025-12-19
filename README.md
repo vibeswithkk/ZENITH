@@ -11,9 +11,9 @@ Zenith is a model-agnostic and hardware-agnostic unification and optimization fr
 
 ## Project History
 
-Zenith was conceived and architecturally designed on **December 11, 2024**, with the creation of its comprehensive blueprint document (CetakBiru.md) that outlines a 36-month development roadmap across 6 implementation phases. After nearly a year of internal development, research, and rigorous testing, Zenith was publicly released on GitHub on **December 16, 2025**.
+Zenith was conceived and architecturally designed on **December 11, 2024**, with the creation of its comprehensive blueprint document (CetakBiru.md) that outlines a 36-month development roadmap across 6 implementation phases. Active development began on **January 12, 2025**, and after 11 months of internal development, research, and rigorous testing, Zenith was publicly released on GitHub on **December 16, 2025**.
 
-The project represents months of dedicated work in building a production-ready ML optimization framework from the ground up, implementing CUDA backends with cuDNN/cuBLAS integration, graph optimization passes, mixed precision support, and comprehensive testing infrastructure.
+The project represents nearly a year of dedicated work in building a production-ready ML optimization framework from the ground up, implementing CUDA backends with cuDNN/cuBLAS integration, graph optimization passes, mixed precision support, and comprehensive testing infrastructure.
 
 ---
 
