@@ -282,6 +282,34 @@ class FusionPass:
                 can_fuse=GemmAddFusion.can_fuse,
                 fuse=GemmAddFusion.fuse,
             ),
+            # BERT-specific fusion patterns
+            FusionPattern(
+                name="linear_gelu",
+                ops=["MatMul", "Gelu"],
+                fused_op="LinearGelu",
+                can_fuse=lambda nodes: len(nodes) == 2,
+                fuse=lambda nodes, graph: _create_fused_node(
+                    nodes, graph, "LinearGelu", "linear_gelu"
+                ),
+            ),
+            FusionPattern(
+                name="layernorm_add",
+                ops=["LayerNormalization", "Add"],
+                fused_op="LayerNormAdd",
+                can_fuse=lambda nodes: len(nodes) == 2,
+                fuse=lambda nodes, graph: _create_fused_node(
+                    nodes, graph, "LayerNormAdd", "layernorm_add"
+                ),
+            ),
+            FusionPattern(
+                name="add_layernorm",
+                ops=["Add", "LayerNormalization"],
+                fused_op="AddLayerNorm",
+                can_fuse=lambda nodes: len(nodes) == 2,
+                fuse=lambda nodes, graph: _create_fused_node(
+                    nodes, graph, "AddLayerNorm", "add_layernorm"
+                ),
+            ),
         ]
         self.stats = {"patterns_matched": 0, "nodes_removed": 0}
 
