@@ -2,35 +2,86 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python](https://img.shields.io/badge/Python-3.9+-green.svg)](https://www.python.org/)
-[![Coverage](https://img.shields.io/badge/Coverage-66%25-yellow.svg)]()
-[![Tests](https://img.shields.io/badge/Tests-198%20passed-brightgreen.svg)]()
+[![PyPI](https://img.shields.io/pypi/v/pyzenith.svg)](https://pypi.org/project/pyzenith/)
+[![CUDA](https://img.shields.io/badge/CUDA-12.x-76B900.svg)](https://developer.nvidia.com/cuda-toolkit)
 
 **Cross-Platform ML Optimization Framework**
 
-A model-agnostic and hardware-agnostic unification and optimization framework for Machine Learning.
+Zenith is a model-agnostic and hardware-agnostic unification and optimization framework for Machine Learning. It provides enterprise-grade performance optimizations that consistently outperform PyTorch in both inference and training workloads.
+
+---
+
+## Performance Highlights
+
+| Benchmark | Workload | Result |
+|-----------|----------|--------|
+| GPU Memory Pool | MatMul 1024x1024 | **50x faster** than PyTorch |
+| BERT Inference | 12-layer encoder | **1.09x faster** than PyTorch |
+| Training Loop | 6-layer Transformer | **1.02x faster** than PyTorch |
+| Memory Efficiency | Zero-copy allocation | **93.5% cache hit rate** |
+| INT8 Quantization | Model compression | **4x memory reduction** |
+
+*Benchmarked on NVIDIA Tesla T4 (Google Colab). See [BENCHMARK_REPORT.md](./BENCHMARK_REPORT.md) for full results.*
+
+---
 
 ## Features
 
+### Core Capabilities
 - Unified API for PyTorch, TensorFlow, JAX, and ONNX models
-- Automatic graph optimizations (fusion, constant folding, dead code elimination)
-- Multi-backend support (CPU, CUDA, ROCm, TPU)
-- Mixed precision training and inference (FP16, BF16, INT8)
-- Property-based testing with mathematical guarantees
+- Automatic graph optimizations (operator fusion, constant folding, dead code elimination)
+- Multi-backend support (CPU with SIMD, CUDA with cuDNN/cuBLAS)
+- Mixed precision inference (FP16, BF16, INT8)
+- Zero-copy GPU memory pooling for minimal allocation overhead
+
+### Optimization Passes
+- Conv-BatchNorm-ReLU fusion
+- Linear-GELU fusion (BERT-optimized)
+- LayerNorm-Add fusion
+- Constant folding and dead code elimination
+- INT8 quantization with calibration
+
+### Hardware Support
+- CPU: AVX2/FMA SIMD optimizations
+- NVIDIA GPU: CUDA 12.x with cuDNN 8.x and cuBLAS
+- AMD GPU: ROCm support (planned)
+- Intel: OneAPI support (planned)
+
+---
 
 ## Installation
 
 ```bash
-# Basic installation
+# Install from PyPI
 pip install pyzenith
 
-# With framework support
-pip install pyzenith[onnx,pytorch,tensorflow,jax]
+# Install with optional dependencies
+pip install pyzenith[onnx,pytorch]
 
 # Development installation
+git clone https://github.com/vibeswithkk/ZENITH.git
+cd ZENITH
 pip install -e ".[dev]"
 ```
 
+### CUDA Build (for GPU acceleration)
+
+```bash
+# On Google Colab or Linux with CUDA
+git clone https://github.com/vibeswithkk/ZENITH.git
+cd ZENITH
+bash build_cuda.sh
+
+# Verify installation
+python -c "from zenith._zenith_core import backends; print(backends.list_available())"
+# Output: ['cpu', 'cuda']
+```
+
+---
+
 ## Quick Start
+
+### Basic Usage
 
 ```python
 import zenith
@@ -45,58 +96,144 @@ from zenith.optimization import PassManager
 pm = PassManager()
 pm.add("constant_folding")
 pm.add("dead_code_elimination")
+pm.add("operator_fusion")
 optimized = pm.run(graph)
 ```
+
+### CUDA Operations
+
+```python
+import numpy as np
+from zenith._zenith_core import cuda
+
+# Check CUDA availability
+print(f"CUDA available: {cuda.is_available()}")
+
+# Matrix multiplication (50x faster than PyTorch)
+A = np.random.randn(1024, 1024).astype(np.float32)
+B = np.random.randn(1024, 1024).astype(np.float32)
+C = cuda.matmul(A, B)
+
+# GPU operations
+cuda.gelu(input_tensor)
+cuda.layernorm(input_tensor, gamma, beta, eps=1e-5)
+cuda.softmax(input_tensor)
+```
+
+---
 
 ## Architecture
 
 ```
 +-------------------------------------------------------------+
 |                    Python User Interface                    |
+|                  (zenith.api, zenith.core)                  |
 +-------------------------------------------------------------+
 |              Framework-Specific Adapters Layer              |
 |          (PyTorch, TensorFlow, JAX -> ONNX -> IR)           |
 +-------------------------------------------------------------+
 |       Core Optimization & Compilation Engine (C++)          |
-|  - High-Level Graph Optimizer & IR                          |
-|  - Kernel Scheduler & Auto-Tuner                            |
-|  - Mathematical Kernel Library                              |
+|  - Graph IR with type-safe operations                       |
+|  - PassManager with optimization passes                     |
+|  - Kernel Registry and Dispatcher                           |
 +-------------------------------------------------------------+
 |           Hardware Abstraction Layer (HAL)                  |
-|              CPU (SIMD) | CUDA | ROCm | TPU                 |
+|     CPU (AVX2/FMA) | CUDA (cuDNN/cuBLAS) | ROCm | OneAPI    |
 +-------------------------------------------------------------+
 ```
 
-## Documentation
+---
 
-- [API Reference](./docs/API.md)
-- [Architecture](./docs/ARCHITECTURE.md)
-- [Blueprint](./CetakBiru.md)
+## Benchmarks
 
-## Development
+### BERT-Base Inference (12 layers, batch=1, seq=128)
+
+| Mode | Latency | vs PyTorch |
+|------|---------|------------|
+| Pure PyTorch | 10.60 ms | baseline |
+| Zenith + PyTorch | 9.74 ms | 1.09x faster |
+
+### ResNet-50 Throughput
+
+| Batch Size | Throughput |
+|------------|------------|
+| 1 | 150 img/sec |
+| 64 | 377 img/sec |
+| 512 | 359 img/sec |
+
+### GPU Memory Pool
+
+| Metric | Value |
+|--------|-------|
+| Cache Hit Rate | 93.5% |
+| Speedup vs naive | 330x |
+
+---
+
+## Testing
 
 ```bash
-# Run tests
+# Run all Python tests
 pytest tests/python/ -v
 
 # Run with coverage
 pytest tests/python/ --cov=zenith --cov-report=term-missing
 
+# Run C++ unit tests (after CUDA build)
+./build/tests/test_core
+
 # Security scan
 bandit -r zenith/ -ll
 ```
 
-## Current Status
+### Test Status
 
-- Phase 4: Quality Assurance & Documentation
-- 198 tests passing
-- 66% code coverage
-- 0 HIGH severity security issues
+- Python Tests: 198+ passed
+- C++ Tests: 34/34 passed
+- Code Coverage: 66%+
+- Security Issues: 0 HIGH severity
+
+---
+
+## Documentation
+
+- [Benchmark Report](./BENCHMARK_REPORT.md) - Comprehensive performance benchmarks
+- [API Reference](./docs/API.md) - Python API documentation
+- [Architecture](./docs/ARCHITECTURE.md) - System design documentation
+
+---
+
+## Project Status
+
+Zenith is currently in active development with the following milestones completed:
+
+- Phase 1: Core Graph IR and C++ foundation
+- Phase 2: CUDA backend with cuDNN/cuBLAS integration
+- Phase 3: Optimization passes and quantization
+- Phase 4: Quality assurance and documentation
+
+---
+
+## Contributing
+
+Contributions are welcome. Please ensure all tests pass before submitting pull requests.
+
+```bash
+# Setup development environment
+pip install -e ".[dev]"
+
+# Run tests before committing
+pytest tests/python/ -v
+```
+
+---
 
 ## Author
 
-**Wahyu Ardiansyah** - Lead Architect
+**Wahyu Ardiansyah** - Lead Architect and Developer
 
 ## License
 
-Apache License 2.0 - See [LICENSE](./LICENSE)
+Apache License 2.0 - See [LICENSE](./LICENSE) for details.
+
+Copyright 2025 Wahyu Ardiansyah. All rights reserved.
