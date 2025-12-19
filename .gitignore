@@ -50,3 +50,5 @@ tmp/
 .tox/
 venv/
 .vscode/
+.website/
+ZENITH
