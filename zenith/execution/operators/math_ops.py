@@ -356,3 +356,65 @@ def execute_reduce_sum(
         result = np.sum(A, keepdims=bool(keepdims))
 
     ctx.set_tensor(outputs[0], result)
+
+
+@OperatorRegistry.register("Erf", tier=2)
+def execute_erf(
+    ctx: "ExecutionContext",
+    inputs: List[str],
+    outputs: List[str],
+    attrs: Dict[str, Any],
+) -> None:
+    """
+    Error function operator.
+
+    ONNX Spec: Y = erf(X)
+    Used for exact GELU: 0.5 * x * (1 + erf(x / sqrt(2)))
+    """
+    from scipy import special
+
+    A = np.asarray(ctx.get_tensor(inputs[0]), dtype=np.float32)
+    result = special.erf(A).astype(np.float32)
+    ctx.set_tensor(outputs[0], result)
+
+
+@OperatorRegistry.register("Equal", tier=2)
+def execute_equal(
+    ctx: "ExecutionContext",
+    inputs: List[str],
+    outputs: List[str],
+    attrs: Dict[str, Any],
+) -> None:
+    """Element-wise equality comparison."""
+    A = ctx.get_tensor(inputs[0])
+    B = ctx.get_tensor(inputs[1])
+    result = np.equal(A, B)
+    ctx.set_tensor(outputs[0], result)
+
+
+@OperatorRegistry.register("Less", tier=2)
+def execute_less(
+    ctx: "ExecutionContext",
+    inputs: List[str],
+    outputs: List[str],
+    attrs: Dict[str, Any],
+) -> None:
+    """Element-wise less than comparison."""
+    A = ctx.get_tensor(inputs[0])
+    B = ctx.get_tensor(inputs[1])
+    result = np.less(A, B)
+    ctx.set_tensor(outputs[0], result)
+
+
+@OperatorRegistry.register("Greater", tier=2)
+def execute_greater(
+    ctx: "ExecutionContext",
+    inputs: List[str],
+    outputs: List[str],
+    attrs: Dict[str, Any],
+) -> None:
+    """Element-wise greater than comparison."""
+    A = ctx.get_tensor(inputs[0])
+    B = ctx.get_tensor(inputs[1])
+    result = np.greater(A, B)
+    ctx.set_tensor(outputs[0], result)
