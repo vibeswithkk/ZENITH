@@ -150,7 +150,7 @@ if __name__ == "__main__":
     print("=" * 70)
 
     for name, passed in results:
-        status = "PASS ✓" if passed else "FAIL ✗"
+        status = "PASS" if passed else "FAIL"
         print(f"  {name:15}: {status}")
 
     all_pass = all(r[1] for r in results)

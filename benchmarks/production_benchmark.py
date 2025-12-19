@@ -119,7 +119,7 @@ if __name__ == "__main__":
 
             speedup_str = f"{result['speedup']:.2f}x"
             if result["speedup"] > 1:
-                speedup_str += " ✓"
+                speedup_str += " [FASTER]"
 
             print(
                 f"{batch:>6} {seq:>6} "

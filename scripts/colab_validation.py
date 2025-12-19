@@ -24,21 +24,21 @@ def check_installation():
     try:
         import zenith
 
-        print(f"✅ pyzenith imported successfully")
+        print(f"[OK] pyzenith imported successfully")
         print(f"   Version: {zenith.__version__}")
         print(f"   Path: {zenith.__file__}")
 
         expected_version = "0.1.3"
         if zenith.__version__ != expected_version:
             print(
-                f"⚠️ WARNING: Expected version {expected_version}, but found {zenith.__version__}"
+                f"[WARNING] Expected version {expected_version}, but found {zenith.__version__}"
             )
             print("   Please run: !pip install pyzenith==0.1.3 --force-reinstall")
             # logical continuation despite warning, but user should know
 
         return True
     except ImportError as e:
-        print(f"❌ Failed to import pyzenith: {e}")
+        print(f"[ERROR] Failed to import pyzenith: {e}")
         return False
 
 
@@ -52,16 +52,16 @@ def check_cuda():
         ctx = ExecutionContext(device="cuda")
         print(f"   ExecutionContext created with device='cuda'")
     except Exception as e:
-        print(f"⚠️  ExecutionContext creation failed: {e}")
+        print(f"[WARNING] ExecutionContext creation failed: {e}")
 
     # Check 2: Native bindings
     try:
         from zenith import _zenith_core
 
         if hasattr(_zenith_core, "cuda"):
-            print(f"✅ _zenith_core.cuda module found")
+            print(f"[OK] _zenith_core.cuda module found")
         else:
-            print(f"⚠️  _zenith_core.cuda module NOT found")
+            print(f"[WARNING] _zenith_core.cuda module NOT found")
 
         if hasattr(_zenith_core, "is_cuda_available"):
             available = _zenith_core.is_cuda_available()
@@ -71,10 +71,10 @@ def check_cuda():
             if hasattr(_zenith_core, "cuda") and _zenith_core.cuda is not None:
                 print(f"   Implied availability via module presence")
             else:
-                print(f"⚠️  Unable to determine availability via direct check")
+                print(f"[WARNING] Unable to determine availability via direct check")
 
     except ImportError:
-        print(f"❌ _zenith_core native bindings NOT found")
+        print(f"[ERROR] _zenith_core native bindings NOT found")
 
 
 def run_performance_test():
@@ -132,7 +132,7 @@ def run_performance_test():
         cpu_time = (end - start) * 1000
         print(f"   CPU Time: {cpu_time:.2f} ms")
     except Exception as e:
-        print(f"❌ CPU run failed: {e}")
+        print(f"[ERROR] CPU run failed: {e}")
         return
 
     # 3. Run on GPU
@@ -144,7 +144,7 @@ def run_performance_test():
         has_cuda = hasattr(_zenith_core, "cuda") and _zenith_core.cuda is not None
 
         if not has_cuda:
-            print("⚠️  Skipping GPU test: CUDA not available")
+            print("[WARNING] Skipping GPU test: CUDA not available")
             return
 
         interpreter_gpu = ONNXInterpreter(graph, device="cuda")
@@ -168,12 +168,12 @@ def run_performance_test():
         diff = np.max(np.abs(res_cpu["Y"] - res_gpu["Y"]))
         print(f"   Max Diff CPU vs GPU: {diff:.6f}")
         if diff < 1e-4:
-            print("✅ Results Match")
+            print("[OK] Results Match")
         else:
-            print("❌ Results Mismatch")
+            print("[ERROR] Results Mismatch")
 
     except Exception as e:
-        print(f"❌ GPU run failed: {e}")
+        print(f"[ERROR] GPU run failed: {e}")
 
 
 if __name__ == "__main__":

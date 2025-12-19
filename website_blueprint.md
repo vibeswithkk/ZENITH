@@ -177,7 +177,7 @@ print(f"Computed {output.size} elements on GPU.")
   - Fade-in text line by line.
 
 ## 5. "Do Not Use" List (Anti-Patterns)
-- ❌ **No Drop Shadows**: Use borders instead.
-- ❌ **No Rounded Corners**: 0px border-radius implies precision.
-- ❌ **No Blur Effects**: Everything must be sharp.
-- ❌ **No Illustrations**: Use diagrams or code only.
+- **No Drop Shadows**: Use borders instead.
+- **No Rounded Corners**: 0px border-radius implies precision.
+- **No Blur Effects**: Everything must be sharp.
+- **No Illustrations**: Use diagrams or code only.
