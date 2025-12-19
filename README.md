@@ -3,6 +3,8 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python](https://img.shields.io/badge/Python-3.9+-green.svg)](https://www.python.org/)
 [![PyPI](https://img.shields.io/pypi/v/pyzenith.svg)](https://pypi.org/project/pyzenith/)
+[![CI](https://github.com/vibeswithkk/ZENITH/actions/workflows/ci.yml/badge.svg)](https://github.com/vibeswithkk/ZENITH/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/vibeswithkk/ZENITH/actions/workflows/codeql.yml/badge.svg)](https://github.com/vibeswithkk/ZENITH/actions/workflows/codeql.yml)
 [![CUDA](https://img.shields.io/badge/CUDA-12.x-76B900.svg)](https://developer.nvidia.com/cuda-toolkit)
 
 **Cross-Platform ML Optimization Framework**
