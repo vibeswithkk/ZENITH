@@ -15,6 +15,7 @@ Zenith adalah framework optimasi ML yang bekerja sebagai **pelengkap** (bukan pe
 | [5. PyTorch](05_pytorch.md) | Zenith + PyTorch |
 | [6. Triton](06_triton.md) | Deployment with Triton |
 | [7. Autotuner](07_autotuner.md) | Kernel Auto-tuning |
+| [8. PyTorch Training](08_pytorch_training.md) | Training dengan Data Besar |
 
 ## Quick Start
 
