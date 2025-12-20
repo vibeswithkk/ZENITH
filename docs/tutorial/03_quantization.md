@@ -66,9 +66,9 @@ Mean Error: 0.006094
 ### Get Quantization Parameters
 
 ```python
-scale, zero_point = fq.get_quantization_params()
-print(f"Scale: {scale}")
-print(f"Zero Point: {zero_point}")
+params = fq.get_quantization_params()
+print(f"Scale: {params.scale}")
+print(f"Zero Point: {params.zero_point}")
 ```
 
 ---
