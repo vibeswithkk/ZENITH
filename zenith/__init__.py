@@ -51,6 +51,9 @@ from .adapters import (
     ONNXAdapter,
 )
 
+# Import backends
+from . import backends
+
 # Main API functions
 from .api import compile, optimize
 
