@@ -2,11 +2,23 @@
 
 Tutorial penggunaan Zenith ML Optimization Framework.
 
-## Available Tutorials
+## Tutorial W3Schools-Style
 
-| Tutorial | Description |
-|----------|-------------|
-| [zenith_tutorial.ipynb](zenith_tutorial.ipynb) | Complete guide dengan PyTorch, JAX, QAT, dan Triton |
+Tutorial lengkap ada di **[docs/tutorial/](../docs/tutorial/)**:
+
+| Chapter | Topic |
+|---------|-------|
+| [1. Getting Started](../docs/tutorial/01_getting_started.md) | Install & Setup |
+| [2. Basics](../docs/tutorial/02_basics.md) | Imports & Modules |
+| [3. Quantization](../docs/tutorial/03_quantization.md) | FakeQuantize |
+| [4. QAT](../docs/tutorial/04_qat.md) | QAT Training |
+| [5. PyTorch](../docs/tutorial/05_pytorch.md) | PyTorch Integration |
+| [6. Triton](../docs/tutorial/06_triton.md) | Deployment |
+| [7. Autotuner](../docs/tutorial/07_autotuner.md) | Auto-tuning |
+
+## Run in Colab
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/vibeswithkk/ZENITH/blob/main/docs/tutorial/zenith_tutorial_colab.ipynb)
 
 ## Quick Start
 
@@ -17,19 +29,6 @@ Tutorial penggunaan Zenith ML Optimization Framework.
 !pip install -e .
 
 # Use
-from zenith.optimization.qat import FakeQuantize, QATConfig
+from zenith.optimization.qat import FakeQuantize
 from zenith.serving.triton_client import MockTritonClient
 ```
-
-## Topics Covered
-
-1. **Getting Started** - Install, import, backend check
-2. **PyTorch + Zenith** - QAT untuk model PyTorch
-3. **JAX + Zenith** - Optimasi fungsi JAX
-4. **Triton Deployment** - Mock server demo
-5. **Auto-tuning** - Kernel optimization
-6. **Load Testing** - Performance testing
-
-## Run in Colab
-
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/vibeswithkk/ZENITH/blob/main/tutorials/zenith_tutorial.ipynb)
