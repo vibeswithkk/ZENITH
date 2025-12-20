@@ -1,0 +1,111 @@
+{{- /*
+Zenith Triton Deployment Template
+Copyright 2025 Wahyu Ardiansyah
+Licensed under the Apache License, Version 2.0
+*/ -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "zenith.fullname" . }}
+  labels:
+    {{- include "zenith.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.triton.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "zenith.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.triton.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "zenith.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "zenith.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.triton.securityContext | nindent 8 }}
+      containers:
+        - name: triton
+          image: "{{ .Values.triton.image.repository }}:{{ .Values.triton.image.tag }}"
+          imagePullPolicy: {{ .Values.triton.image.pullPolicy }}
+          args:
+            - tritonserver
+            - --model-repository=/models
+            - --model-control-mode={{ .Values.triton.config.modelControlMode }}
+            - --repository-poll-secs={{ .Values.triton.config.repositoryPollSecs }}
+            - --strict-model-config={{ .Values.triton.config.strictModelConfig }}
+            - --log-verbose={{ .Values.triton.config.logVerbose }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+            - name: grpc
+              containerPort: 8001
+              protocol: TCP
+            - name: metrics
+              containerPort: 8002
+              protocol: TCP
+          {{- if .Values.triton.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /v2/health/live
+              port: http
+            initialDelaySeconds: {{ .Values.triton.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.triton.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.triton.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.triton.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.triton.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: /v2/health/ready
+              port: http
+            initialDelaySeconds: {{ .Values.triton.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.triton.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.triton.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.triton.readinessProbe.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.triton.resources | nindent 12 }}
+          volumeMounts:
+            - name: model-repository
+              mountPath: /models
+              readOnly: true
+            {{- with .Values.triton.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.triton.extraEnv }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: model-repository
+          {{- if eq .Values.triton.modelRepository.type "pvc" }}
+          persistentVolumeClaim:
+            claimName: {{ include "zenith.pvcName" . }}
+          {{- else if eq .Values.triton.modelRepository.type "emptyDir" }}
+          emptyDir: {}
+          {{- end }}
+        {{- with .Values.triton.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.triton.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.triton.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.triton.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

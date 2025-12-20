@@ -1,0 +1,25 @@
+# Zenith Helm Chart
+# Kubernetes deployment for Zenith + Triton Inference Server
+#
+# Copyright 2025 Wahyu Ardiansyah
+# Licensed under the Apache License, Version 2.0
+
+apiVersion: v2
+name: zenith
+description: Zenith ML Optimization Framework with NVIDIA Triton Inference Server
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - machine-learning
+  - inference
+  - triton
+  - optimization
+  - zenith
+home: https://github.com/zenith-ml/zenith
+sources:
+  - https://github.com/zenith-ml/zenith
+maintainers:
+  - name: Wahyu Ardiansyah
+    email: zenith@project.io
+dependencies: []

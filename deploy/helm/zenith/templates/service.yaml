@@ -1,0 +1,32 @@
+{{- /*
+Zenith Triton Service Template
+Copyright 2025 Wahyu Ardiansyah
+Licensed under the Apache License, Version 2.0
+*/ -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "zenith.fullname" . }}
+  labels:
+    {{- include "zenith.labels" . | nindent 4 }}
+  {{- with .Values.triton.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.triton.service.type }}
+  ports:
+    - port: {{ .Values.triton.service.httpPort }}
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: {{ .Values.triton.service.grpcPort }}
+      targetPort: grpc
+      protocol: TCP
+      name: grpc
+    - port: {{ .Values.triton.service.metricsPort }}
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+  selector:
+    {{- include "zenith.selectorLabels" . | nindent 4 }}

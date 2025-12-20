@@ -68,9 +68,21 @@ try:
         SearchSpace,
         GridSearch,
         RandomSearch,
+        SimulatedAnnealingSearch,
+        GeneticAlgorithmSearch,
         MATMUL_SEARCH_SPACE,
         CONV2D_SEARCH_SPACE,
         autotune_matmul,
+    )
+    from .hardware_profile import (
+        DeviceType,
+        CPUVendor,
+        HardwareInfo,
+        CUDADeviceInfo,
+        HardwareConstraints,
+        detect_hardware,
+        get_hardware_info,
+        get_constraints_for_device,
     )
     from .mixed_precision import (
         Precision,
@@ -89,6 +101,20 @@ try:
         QATSimulator,
         quantize_model_static,
         measure_quantization_error,
+    )
+    from .qat import (
+        QATScheme,
+        ObserverType,
+        QATConfig,
+        FakeQuantize,
+        QATModule,
+        QATTrainer,
+        fold_bn_into_conv,
+        unfold_bn_from_conv,
+        prepare_model_for_qat,
+        convert_qat_to_quantized,
+        simulate_qat_forward,
+        measure_qat_error,
     )
 
     _PHASE2_AVAILABLE = True

@@ -1,0 +1,201 @@
+# Zenith Helm Chart Values
+# Default configuration for Kubernetes deployment
+#
+# Copyright 2025 Wahyu Ardiansyah
+# Licensed under the Apache License, Version 2.0
+
+# =============================================================================
+# Global Settings
+# =============================================================================
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+
+# =============================================================================
+# Triton Server Configuration
+# =============================================================================
+triton:
+  # Image settings
+  image:
+    repository: nvcr.io/nvidia/tritonserver
+    tag: "24.01-py3"
+    pullPolicy: IfNotPresent
+
+  # Replica count
+  replicaCount: 1
+
+  # Resource limits
+  resources:
+    requests:
+      memory: "4Gi"
+      cpu: "2"
+      nvidia.com/gpu: "1"
+    limits:
+      memory: "16Gi"
+      cpu: "8"
+      nvidia.com/gpu: "1"
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    httpPort: 8000
+    grpcPort: 8001
+    metricsPort: 8002
+    annotations: {}
+
+  # Model repository configuration
+  modelRepository:
+    # Storage type: pvc, s3, gcs, azure
+    type: pvc
+    pvc:
+      existingClaim: ""
+      storageClass: ""
+      size: 10Gi
+      accessModes:
+        - ReadWriteMany
+    # S3 configuration (if type: s3)
+    s3:
+      path: ""
+      region: ""
+      credentials:
+        secretName: ""
+        accessKeyKey: "accessKey"
+        secretKeyKey: "secretKey"
+
+  # Triton configuration
+  config:
+    modelControlMode: "poll"
+    repositoryPollSecs: 15
+    strictModelConfig: false
+    logVerbose: 1
+    cudaMemoryPoolByteSize: ""
+    pinnedMemoryPoolByteSize: ""
+
+  # Liveness and readiness probes
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  # Node selector
+  nodeSelector: {}
+
+  # Tolerations
+  tolerations:
+    - key: "nvidia.com/gpu"
+      operator: "Exists"
+      effect: "NoSchedule"
+
+  # Affinity
+  affinity: {}
+
+  # Pod annotations
+  podAnnotations: {}
+
+  # Security context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+
+  # Extra environment variables
+  extraEnv: []
+
+  # Extra volumes
+  extraVolumes: []
+  extraVolumeMounts: []
+
+# =============================================================================
+# Horizontal Pod Autoscaler
+# =============================================================================
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+  # Custom metrics (requires prometheus-adapter)
+  customMetrics: []
+  #   - type: Pods
+  #     pods:
+  #       metric:
+  #         name: nv_inference_request_success
+  #       target:
+  #         type: AverageValue
+  #         averageValue: 1000
+
+# =============================================================================
+# Ingress Configuration
+# =============================================================================
+ingress:
+  enabled: false
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+  hosts:
+    - host: zenith.local
+      paths:
+        - path: /
+          pathType: Prefix
+          port: 8000
+  tls: []
+  #   - secretName: zenith-tls
+  #     hosts:
+  #       - zenith.local
+
+# =============================================================================
+# Service Account
+# =============================================================================
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# =============================================================================
+# RBAC
+# =============================================================================
+rbac:
+  create: true
+
+# =============================================================================
+# Metrics / Monitoring
+# =============================================================================
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: false
+    namespace: ""
+    interval: 15s
+    scrapeTimeout: 10s
+    labels: {}
+
+# =============================================================================
+# Pod Disruption Budget
+# =============================================================================
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+  # maxUnavailable: 1
+
+# =============================================================================
+# Network Policy
+# =============================================================================
+networkPolicy:
+  enabled: false
+  ingress:
+    - from:
+        - podSelector: {}
+  egress:
+    - to:
+        - podSelector: {}

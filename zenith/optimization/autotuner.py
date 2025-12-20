@@ -209,6 +209,236 @@ class RandomSearch(SearchStrategy):
         return best_params, best_time
 
 
+class SimulatedAnnealingSearch(SearchStrategy):
+    """
+    Simulated Annealing search strategy.
+
+    Uses probabilistic acceptance of worse solutions to escape local minima,
+    with temperature gradually decreasing over iterations.
+
+    Reference: Kirkpatrick et al. "Optimization by Simulated Annealing"
+    """
+
+    def __init__(
+        self,
+        initial_temp: float = 1.0,
+        cooling_rate: float = 0.95,
+        min_temp: float = 0.01,
+        seed: int | None = None,
+    ):
+        """
+        Initialize Simulated Annealing search.
+
+        Args:
+            initial_temp: Starting temperature
+            cooling_rate: Multiplicative cooling factor (0 < rate < 1)
+            min_temp: Minimum temperature (stopping condition)
+            seed: Random seed for reproducibility
+        """
+        self.initial_temp = initial_temp
+        self.cooling_rate = cooling_rate
+        self.min_temp = min_temp
+        self.rng = np.random.default_rng(seed)
+
+    def search(
+        self,
+        space: SearchSpace,
+        evaluate: Callable[[dict], float],
+        max_trials: int,
+    ) -> tuple[dict, float]:
+        if space.size() == 0:
+            return {}, float("inf")
+
+        # Initialize with random configuration
+        all_configs = list(space.iterate())
+        current_params = self.rng.choice(all_configs)
+        current_cost = evaluate(current_params)
+
+        best_params = current_params.copy()
+        best_cost = current_cost
+
+        temperature = self.initial_temp
+        trial = 0
+
+        while trial < max_trials and temperature > self.min_temp:
+            # Generate neighbor by modifying one parameter
+            neighbor = self._get_neighbor(current_params, space)
+            neighbor_cost = evaluate(neighbor)
+
+            # Accept or reject based on Metropolis criterion
+            delta = neighbor_cost - current_cost
+            if delta < 0:
+                # Better solution - always accept
+                current_params = neighbor
+                current_cost = neighbor_cost
+            else:
+                # Worse solution - accept with probability
+                acceptance_prob = np.exp(-delta / (temperature * best_cost + 1e-10))
+                if self.rng.random() < acceptance_prob:
+                    current_params = neighbor
+                    current_cost = neighbor_cost
+
+            # Update best if improved
+            if current_cost < best_cost:
+                best_params = current_params.copy()
+                best_cost = current_cost
+
+            # Cool down
+            temperature *= self.cooling_rate
+            trial += 1
+
+        return best_params, best_cost
+
+    def _get_neighbor(self, params: dict, space: SearchSpace) -> dict:
+        """Generate a neighboring configuration by modifying one parameter."""
+        neighbor = params.copy()
+        param_names = list(space.params.keys())
+
+        # Pick a random parameter to modify
+        param_to_modify = self.rng.choice(param_names)
+        possible_values = space.params[param_to_modify]
+
+        # Pick a new value (different from current if possible)
+        current_val = params[param_to_modify]
+        if len(possible_values) > 1:
+            other_values = [v for v in possible_values if v != current_val]
+            neighbor[param_to_modify] = self.rng.choice(other_values)
+        else:
+            neighbor[param_to_modify] = possible_values[0]
+
+        return neighbor
+
+
+class GeneticAlgorithmSearch(SearchStrategy):
+    """
+    Genetic Algorithm search strategy.
+
+    Uses evolutionary principles (selection, crossover, mutation) to
+    evolve a population of configurations towards optimal solutions.
+
+    Reference: Mitchell, Melanie. "An Introduction to Genetic Algorithms"
+    """
+
+    def __init__(
+        self,
+        population_size: int = 20,
+        elite_ratio: float = 0.2,
+        mutation_rate: float = 0.1,
+        crossover_rate: float = 0.8,
+        seed: int | None = None,
+    ):
+        """
+        Initialize Genetic Algorithm search.
+
+        Args:
+            population_size: Number of individuals in each generation
+            elite_ratio: Fraction of best individuals to keep unchanged
+            mutation_rate: Probability of mutating each gene
+            crossover_rate: Probability of crossover between parents
+            seed: Random seed for reproducibility
+        """
+        self.population_size = population_size
+        self.elite_ratio = elite_ratio
+        self.mutation_rate = mutation_rate
+        self.crossover_rate = crossover_rate
+        self.rng = np.random.default_rng(seed)
+
+    def search(
+        self,
+        space: SearchSpace,
+        evaluate: Callable[[dict], float],
+        max_trials: int,
+    ) -> tuple[dict, float]:
+        if space.size() == 0:
+            return {}, float("inf")
+
+        param_names = list(space.params.keys())
+
+        # Initialize population
+        all_configs = list(space.iterate())
+        pop_size = min(self.population_size, len(all_configs))
+        population = list(self.rng.choice(all_configs, size=pop_size, replace=False))
+
+        # Evaluate initial population
+        fitness = [evaluate(ind) for ind in population]
+        trials_used = pop_size
+
+        best_idx = int(np.argmin(fitness))
+        best_params = population[best_idx].copy()
+        best_cost = fitness[best_idx]
+
+        num_elite = max(1, int(pop_size * self.elite_ratio))
+        generations = (max_trials - pop_size) // pop_size
+
+        for _ in range(generations):
+            if trials_used >= max_trials:
+                break
+
+            # Selection: rank-based
+            sorted_indices = np.argsort(fitness)
+            selected = [population[i] for i in sorted_indices[: pop_size // 2]]
+
+            # Create new population
+            new_population = []
+
+            # Elitism: keep best individuals
+            for i in range(num_elite):
+                new_population.append(population[sorted_indices[i]].copy())
+
+            # Crossover and mutation
+            while len(new_population) < pop_size:
+                # Select parents
+                parent1 = selected[self.rng.integers(len(selected))]
+                parent2 = selected[self.rng.integers(len(selected))]
+
+                # Crossover
+                if self.rng.random() < self.crossover_rate:
+                    child = self._crossover(parent1, parent2, param_names)
+                else:
+                    child = parent1.copy()
+
+                # Mutation
+                child = self._mutate(child, space)
+
+                new_population.append(child)
+
+            population = new_population[:pop_size]
+
+            # Evaluate new population (skip elites already evaluated)
+            fitness = []
+            for i, ind in enumerate(population):
+                if i < num_elite:
+                    # Re-evaluate elites (they may have been modified)
+                    pass
+                cost = evaluate(ind)
+                fitness.append(cost)
+                trials_used += 1
+
+                if cost < best_cost:
+                    best_params = ind.copy()
+                    best_cost = cost
+
+        return best_params, best_cost
+
+    def _crossover(self, parent1: dict, parent2: dict, param_names: list[str]) -> dict:
+        """Uniform crossover between two parents."""
+        child = {}
+        for param in param_names:
+            if self.rng.random() < 0.5:
+                child[param] = parent1[param]
+            else:
+                child[param] = parent2[param]
+        return child
+
+    def _mutate(self, individual: dict, space: SearchSpace) -> dict:
+        """Mutate individual by randomly changing parameters."""
+        mutated = individual.copy()
+        for param_name, values in space.params.items():
+            if self.rng.random() < self.mutation_rate:
+                mutated[param_name] = self.rng.choice(values)
+        return mutated
+
+
 class TuningCache:
     """Persistent cache for tuning results."""
 

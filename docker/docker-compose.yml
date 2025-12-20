@@ -1,0 +1,123 @@
+# Zenith Development Stack with Triton Inference Server
+#
+# Includes:
+# - Triton Inference Server with Zenith backend
+# - Prometheus for metrics collection
+# - Grafana for visualization
+#
+# Copyright 2025 Wahyu Ardiansyah
+# Licensed under the Apache License, Version 2.0
+
+version: '3.9'
+
+services:
+  # ===========================================================================
+  # Triton Inference Server with Zenith
+  # ===========================================================================
+  triton:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: zenith-triton:latest
+    container_name: zenith-triton
+    ports:
+      - "8000:8000" # HTTP
+      - "8001:8001" # gRPC
+      - "8002:8002" # Metrics
+    volumes:
+      - ./models:/models:ro
+      - ./logs:/var/log/triton
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - NVIDIA_VISIBLE_DEVICES=all
+      - ZENITH_LOG_LEVEL=INFO
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/v2/health/ready" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - zenith-network
+
+  # ===========================================================================
+  # Prometheus for Metrics Collection
+  # ===========================================================================
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: zenith-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    networks:
+      - zenith-network
+
+  # ===========================================================================
+  # Grafana for Visualization
+  # ===========================================================================
+  grafana:
+    image: grafana/grafana:10.2.2
+    container_name: zenith-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=zenith
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - zenith-network
+
+  # ===========================================================================
+  # Load Balancer (optional, for multi-replica deployments)
+  # ===========================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: zenith-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - triton
+    restart: unless-stopped
+    networks:
+      - zenith-network
+    profiles:
+      - loadbalancer
+
+networks:
+  zenith-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  prometheus-data:
+  grafana-data:
