@@ -54,6 +54,11 @@ from .adapters import (
 # Import backends
 from . import backends
 
+# Import framework-specific modules
+from . import tensorflow
+from . import jax
+from . import torch
+
 # Main API functions
 from .api import compile, optimize
 

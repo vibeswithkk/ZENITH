@@ -561,27 +561,135 @@ if not status.ok():
 ```python
 class PyTorchAdapter:
     is_available: bool
+    config: ZenithPyTorchConfig
 ```
 
-Adapter for converting PyTorch models to GraphIR.
+Enterprise-grade adapter for PyTorch models with full support for:
+- PyTorch nn.Module and torch.jit models
+- torch.compile backend integration (TorchDynamo)
+- FX Graph capture and conversion (PyTorch 2.x)
+- HuggingFace Transformers (PyTorch models)
+- Training integration with Automatic Mixed Precision (AMP)
 
-**Methods:**
+**Configuration:**
+
+```python
+@dataclass
+class ZenithPyTorchConfig:
+    target: str = "cuda"           # "cpu", "cuda", "cuda:0"
+    precision: str = "fp32"        # "fp32", "fp16", "bf16", "int8"
+    opt_level: int = 2             # 1-3
+    opset_version: int = 17        # ONNX opset
+    mode: str = "default"          # torch.compile mode
+    fullgraph: bool = False        # Require full graph capture
+    enable_amp: bool = False       # Automatic Mixed Precision
+    gradient_checkpointing: bool = False
+    tolerance: float = 1e-6
+```
+
+**Core Methods:**
 
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `from_model(model, sample_input, **kwargs)` | `GraphIR` | Convert PyTorch model to GraphIR |
+| `from_fx_graph(model, sample_input)` | `GraphIR` | Convert using FX Graph (PyTorch 2.x) |
+| `from_transformers(model_name, task, **kwargs)` | `GraphIR` | Convert HuggingFace PyTorch model |
+| `create_compile_backend(target, precision)` | `Callable` | Create torch.compile backend |
+| `compile_function(func, target, precision)` | `Callable` | Compile function with optimizations |
+| `wrap_training_step(fn, **kwargs)` | `Callable` | Wrap training step |
+| `create_optimizer_wrapper(optimizer)` | `Wrapper` | Create optimized optimizer |
+| `to_onnx(model, sample_input, **kwargs)` | `bytes` | Export to ONNX format |
 
-**Example:**
+**Basic Example:**
 
 ```python
 from zenith import PyTorchAdapter
 import torch
 
 adapter = PyTorchAdapter()
-if adapter.is_available:
-    model = torch.nn.Linear(10, 5)
-    sample = torch.randn(1, 10)
-    graph_ir = adapter.from_model(model, sample)
+model = torch.nn.Sequential(
+    torch.nn.Linear(16, 32),
+    torch.nn.ReLU(),
+    torch.nn.Linear(32, 10)
+)
+sample = torch.randn(1, 16)
+graph_ir = adapter.from_model(model, sample)
+```
+
+**torch.compile Backend Integration:**
+
+```python
+import torch
+import zenith.torch as ztorch
+
+# Create Zenith backend for torch.compile
+backend = ztorch.create_backend(target="cuda", precision="fp16")
+
+# Use with torch.compile
+model = torch.nn.Linear(10, 5)
+compiled = torch.compile(model, backend=backend)
+
+# Runs with Zenith optimizations
+output = compiled(torch.randn(1, 10))
+```
+
+**HuggingFace Integration:**
+
+```python
+# Load HuggingFace PyTorch model directly
+graph = adapter.from_transformers(
+    "bert-base-uncased",
+    task="text-classification",
+    max_length=128
+)
+```
+
+**Compilation Hook (like torch.compile):**
+
+```python
+import zenith.torch as ztorch
+
+@ztorch.compile(target="cuda", precision="fp16")
+def forward(x):
+    return model(x)
+
+# Compiled function runs with Zenith optimizations
+output = forward(input_tensor)
+```
+
+**Training Integration:**
+
+```python
+import zenith.torch as ztorch
+
+# Wrap training step with AMP
+optimized_step = ztorch.wrap_training_step(
+    train_step,
+    enable_amp=True
+)
+
+# Create optimized optimizer wrapper
+optimizer = torch.optim.Adam(model.parameters())
+wrapped = ztorch.create_optimizer_wrapper(optimizer, enable_amp=True)
+```
+
+**Module-level API (zenith.torch):**
+
+```python
+import zenith.torch as ztorch
+
+# Configuration
+ztorch.configure(target="cuda", precision="fp16")
+
+# Core functions
+ztorch.compile(func)                 # Compile function
+ztorch.create_backend()              # torch.compile backend
+ztorch.from_model(model, sample)     # Convert model
+ztorch.from_transformers(name)       # Load HuggingFace
+ztorch.wrap_training_step(fn)        # Training integration
+ztorch.to_onnx(model, sample)        # Export to ONNX
+ztorch.is_available()                # Check PyTorch availability
+ztorch.has_torch_compile()           # Check torch.compile support
 ```
 
 ---
@@ -591,15 +699,119 @@ if adapter.is_available:
 ```python
 class TensorFlowAdapter:
     is_available: bool
+    config: ZenithTFConfig
 ```
 
-Adapter for converting TensorFlow/Keras models to GraphIR.
+Enterprise-grade adapter for TensorFlow 2.x models with full support for:
+- SavedModel and Keras models
+- HuggingFace Transformers (TF models)
+- `tf.function` compilation hook (like `torch.compile`)
+- Inference and Training integration
 
-**Methods:**
+**Configuration:**
+
+```python
+@dataclass
+class ZenithTFConfig:
+    target: str = "cuda"           # "cpu", "cuda", "cuda:0"
+    precision: str = "fp32"        # "fp32", "fp16", "bf16", "int8"
+    opt_level: int = 2             # 1-3
+    opset_version: int = 17        # ONNX opset
+    enable_gradient_optimization: bool = True
+    enable_mixed_precision_training: bool = False
+    gradient_checkpointing: bool = False
+    tolerance: float = 1e-6
+```
+
+**Core Methods:**
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `from_model(model, sample_input, **kwargs)` | `GraphIR` | Convert TensorFlow model to GraphIR |
+| `from_model(model, sample_input, **kwargs)` | `GraphIR` | Convert TensorFlow/Keras model to GraphIR |
+| `from_saved_model(path, signature_key, **kwargs)` | `GraphIR` | Load and convert SavedModel |
+| `from_transformers(model_name, task, **kwargs)` | `GraphIR` | Convert HuggingFace TF model |
+| `compile_function(func, target, precision, **kwargs)` | `Callable` | Compile tf.function with optimizations |
+| `create_training_callback(model, **kwargs)` | `Callback` | Create Keras training callback |
+| `wrap_training_step(fn, model, optimizer, **kwargs)` | `Callable` | Wrap custom training step |
+| `to_onnx(model, sample_input, **kwargs)` | `bytes` | Export to ONNX format |
+
+**Basic Example:**
+
+```python
+from zenith import TensorFlowAdapter
+import tensorflow as tf
+
+adapter = TensorFlowAdapter()
+model = tf.keras.Sequential([
+    tf.keras.layers.Dense(64, activation='relu'),
+    tf.keras.layers.Dense(10)
+])
+sample = tf.random.normal((1, 10))
+graph_ir = adapter.from_model(model, sample_input=sample)
+```
+
+**HuggingFace Integration:**
+
+```python
+# Load HuggingFace TF model directly
+graph = adapter.from_transformers(
+    "bert-base-uncased",
+    task="text-classification",
+    max_length=128
+)
+```
+
+**tf.function Compilation Hook (like torch.compile):**
+
+```python
+import zenith.tensorflow as ztf
+
+@ztf.compile(target="cuda", precision="fp16")
+@tf.function
+def forward(x):
+    return model(x)
+
+# Compiled function runs with Zenith optimizations
+output = forward(input_tensor)
+```
+
+**Training Integration:**
+
+```python
+# Create training callback for mixed precision
+callback = adapter.create_training_callback(
+    model,
+    enable_mixed_precision=True
+)
+model.fit(X, y, callbacks=[callback.get_keras_callback()])
+
+# Or wrap custom training loop
+optimized_step = adapter.wrap_training_step(
+    train_step,
+    model,
+    optimizer,
+    enable_mixed_precision=True
+)
+```
+
+**Module-level API (zenith.tensorflow):**
+
+```python
+import zenith.tensorflow as ztf
+
+# Configuration
+ztf.configure(target="cuda", precision="fp16")
+
+# Core functions
+ztf.compile(func)                  # Compile tf.function
+ztf.compile_function(func)         # Same as compile
+ztf.from_model(model)              # Convert model
+ztf.from_transformers(name)        # Load HuggingFace model
+ztf.create_training_callback()     # Training callback
+ztf.wrap_training_step()           # Wrap training step
+ztf.to_onnx(model)                 # Export to ONNX
+ztf.is_available()                 # Check TF availability
+```
 
 ---
 
@@ -608,17 +820,143 @@ Adapter for converting TensorFlow/Keras models to GraphIR.
 ```python
 class JAXAdapter:
     is_available: bool
+    config: ZenithJAXConfig
 ```
 
-Adapter for converting JAX functions to GraphIR.
+Enterprise-grade adapter for JAX functions and Flax/Haiku models with full support for:
+- Pure JAX functions with jax.jit
+- Flax nn.Module models
+- Haiku transformed functions
+- HuggingFace Transformers (Flax models)
+- Compilation hook (like torch.compile)
+- Training state integration
+- StableHLO native export
 
-**Methods:**
+**Configuration:**
+
+```python
+@dataclass
+class ZenithJAXConfig:
+    target: str = "cuda"           # "cpu", "cuda", "tpu"
+    precision: str = "fp32"        # "fp32", "fp16", "bf16", "int8"
+    opt_level: int = 2             # 1-3
+    opset_version: int = 17        # ONNX opset
+    enable_xla: bool = True
+    enable_donation: bool = False  # Buffer donation
+    gradient_checkpointing: bool = False
+    tolerance: float = 1e-6
+```
+
+**Core Methods:**
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `from_model(fn, sample_input, **kwargs)` | `GraphIR` | Convert JAX function to GraphIR |
+| `from_model(fn, sample_input, params, **kwargs)` | `GraphIR` | Convert JAX function/Flax/Haiku to GraphIR |
+| `from_flax_module(module, params, sample_input)` | `GraphIR` | Convert Flax nn.Module |
+| `from_haiku(transformed_fn, params, sample_input)` | `GraphIR` | Convert Haiku function |
+| `from_transformers(model_name, task, **kwargs)` | `GraphIR` | Convert HuggingFace Flax model |
+| `from_stablehlo(model, sample_input, **kwargs)` | `GraphIR` | Export via StableHLO |
+| `compile_function(func, target, precision)` | `Callable` | Compile with optimizations |
+| `create_training_state(model, params, optimizer)` | `TrainState` | Create training state |
+| `wrap_training_step(fn, **kwargs)` | `Callable` | Wrap training step |
+| `to_onnx(model, sample_input, **kwargs)` | `bytes` | Export to ONNX format |
 
----
+**Basic Example:**
+
+```python
+from zenith import JAXAdapter
+import jax.numpy as jnp
+
+adapter = JAXAdapter()
+
+def mlp(x):
+    w1 = jnp.ones((x.shape[-1], 32))
+    return jnp.maximum(jnp.dot(x, w1), 0)
+
+sample = jnp.ones((1, 16))
+graph_ir = adapter.from_model(mlp, sample_input=sample)
+```
+
+**Flax nn.Module Integration:**
+
+```python
+from flax import linen as nn
+
+class MLP(nn.Module):
+    @nn.compact
+    def __call__(self, x):
+        x = nn.Dense(64)(x)
+        x = nn.relu(x)
+        return nn.Dense(10)(x)
+
+model = MLP()
+params = model.init(jax.random.PRNGKey(0), sample)["params"]
+graph = adapter.from_flax_module(model, params, sample)
+```
+
+**HuggingFace Flax Integration:**
+
+```python
+# Load HuggingFace Flax model directly
+graph = adapter.from_transformers(
+    "bert-base-uncased",
+    task="text-classification",
+    max_length=128
+)
+```
+
+**Compilation Hook (like torch.compile):**
+
+```python
+import zenith.jax as zjax
+
+@zjax.compile(target="cuda", precision="fp16")
+@jax.jit
+def forward(x):
+    return model.apply(params, x)
+
+# Compiled function runs with Zenith optimizations
+output = forward(input_tensor)
+```
+
+**Training State Integration:**
+
+```python
+import optax
+
+# Create Zenith training state
+state = adapter.create_training_state(
+    model,
+    params,
+    optax.adam(1e-4),
+    enable_gradient_checkpointing=True
+)
+
+# Training loop
+for batch in dataloader:
+    grads = compute_gradients(state, batch)
+    state = state.apply_gradients(grads)
+```
+
+**Module-level API (zenith.jax):**
+
+```python
+import zenith.jax as zjax
+
+# Configuration
+zjax.configure(target="cuda", precision="fp16")
+
+# Core functions
+zjax.compile(func)                  # Compile JAX function
+zjax.from_model(fn, sample)         # Convert function
+zjax.from_flax_module(m, p, s)      # Convert Flax module
+zjax.from_haiku(fn, p, s)           # Convert Haiku
+zjax.from_transformers(name)        # Load HuggingFace
+zjax.create_training_state()        # Training state
+zjax.to_onnx(fn, sample)            # Export to ONNX
+zjax.is_available()                 # Check JAX availability
+```
+
 
 ### ONNXAdapter
 

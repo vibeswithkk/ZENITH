@@ -39,9 +39,9 @@ Zenith is a cross-platform ML optimization framework designed as a unification l
 |  +--------------------------------------------------------+  |
 +-------------------------------------------------------------+
 |           Hardware Abstraction Layer (HAL)                   |
-|   +------+------+------+------+------+------+------+        |
-|   | CUDA |ROCM  | SYCL |Metal |Vulkan| TPU  | CPU  | ...    |
-|   +------+------+------+------+------+------+------+        |
+|   +------+------+------+------+------+------+------+         |
+|   | CUDA |ROCM  | SYCL |Metal |Vulkan| TPU  | CPU  | ...     |
+|   +------+------+------+------+------+------+------+         |
 +-------------------------------------------------------------+
 |                Physical Hardware Resources                   |
 |      (NVIDIA GPU, AMD GPU, Intel CPU/GPU, TPU, etc.)         |
