@@ -1399,6 +1399,219 @@ else:
 
 ---
 
+## Hardware Backends
+
+### Overview
+
+Zenith provides a unified Hardware Abstraction Layer (HAL) supporting multiple hardware backends:
+
+- **CPU**: Universal fallback, always available
+- **CUDA**: NVIDIA GPU acceleration
+- **ROCm**: AMD GPU acceleration (HIP runtime)
+- **oneAPI**: Intel GPU/CPU acceleration (SYCL runtime)
+
+### Backend Base Class
+
+```python
+class BaseBackend(ABC):
+    name: str              # Backend identifier
+    backend_type: BackendType  # Enum (CPU, CUDA, ROCM, ONEAPI)
+    device_id: int         # Device index
+
+    # Core methods
+    def is_available() -> bool
+    def initialize() -> bool
+    def cleanup() -> None
+    def get_device_properties() -> DeviceProperties
+
+    # Memory management
+    def allocate(size_bytes: int) -> int
+    def deallocate(ptr: int) -> None
+    def copy_to_device(dst, src, size_bytes) -> None
+    def copy_to_host(dst, src, size_bytes) -> None
+
+    # Synchronization
+    def synchronize() -> None
+```
+
+### Availability Functions
+
+```python
+from zenith.backends import (
+    is_cpu_available,    # Always True
+    is_cuda_available,   # NVIDIA GPU
+    is_rocm_available,   # AMD GPU
+    is_oneapi_available, # Intel GPU/CPU
+    get_available_backends,  # Returns list of names
+)
+
+# Example
+print(get_available_backends())  # ['cpu', 'cuda']
+```
+
+### Device Management
+
+```python
+from zenith.backends import (
+    get_device,
+    set_device,
+    list_devices,
+    synchronize,
+)
+
+# Get specific device
+cuda_device = get_device("cuda:0")
+rocm_device = get_device("rocm:0")
+cpu_device = get_device("cpu:0")
+
+# List all available devices
+devices = list_devices()  # ['cuda:0', 'cuda:1', 'cpu:0']
+
+# Set default device
+set_device("cuda:0")
+
+# Synchronize device
+synchronize("cuda:0")
+```
+
+### Backend Classes
+
+#### CUDABackend
+
+```python
+from zenith.backends import CUDABackend
+
+backend = CUDABackend(device_id=0)
+if backend.is_available():
+    backend.initialize()
+
+    # Get device properties
+    props = backend.get_device_properties()
+    print(f"Device: {props.name}")
+    print(f"Memory: {props.total_memory / 1e9:.1f} GB")
+    print(f"Compute: {props.compute_capability}")
+
+    # Allocate memory
+    ptr = backend.allocate(1024 * 1024)  # 1 MB
+
+    # Copy data
+    import numpy as np
+    data = np.random.randn(1000).astype(np.float32)
+    backend.copy_to_device(ptr, data, data.nbytes)
+
+    backend.synchronize()
+    backend.deallocate(ptr)
+    backend.cleanup()
+```
+
+#### ROCmBackend
+
+```python
+from zenith.backends import ROCmBackend
+
+backend = ROCmBackend(device_id=0)
+if backend.is_available():
+    backend.initialize()
+    props = backend.get_device_properties()
+    print(f"AMD GPU: {props.name}")
+    print(f"Wavefront size: {props.warp_size}")  # 64 for AMD
+```
+
+#### OneAPIBackend
+
+```python
+from zenith.backends import OneAPIBackend
+
+# GPU mode
+gpu_backend = OneAPIBackend(device_id=0, device_type="gpu")
+
+# CPU mode with SYCL
+cpu_backend = OneAPIBackend(device_id=0, device_type="cpu")
+
+if gpu_backend.is_available():
+    gpu_backend.initialize()
+    props = gpu_backend.get_device_properties()
+    print(f"Intel device: {props.name}")
+```
+
+### Backend Registry
+
+```python
+from zenith.backends import BackendRegistry
+
+registry = BackendRegistry()
+
+# List registered backends
+print(registry.list_backends())  # ['cpu', 'cuda', 'rocm', 'oneapi']
+
+# Get backend by device string
+backend = registry.get("cuda:0", auto_init=True)
+
+# Get default (first available)
+default = registry.get_default()
+
+# Set fallback chain
+registry.set_fallback_chain(["cuda", "rocm", "oneapi", "cpu"])
+```
+
+### DeviceProperties
+
+```python
+@dataclass
+class DeviceProperties:
+    name: str                    # Device name
+    vendor: str                  # Vendor (NVIDIA, AMD, Intel)
+    backend_type: BackendType    # Backend enum
+    device_id: int               # Device index
+    total_memory: int            # Total memory (bytes)
+    free_memory: int             # Available memory (bytes)
+    compute_capability: tuple    # (major, minor)
+    max_threads_per_block: int
+    warp_size: int               # 32 (NVIDIA), 64 (AMD)
+    multiprocessor_count: int
+    supports_fp16: bool
+    supports_bf16: bool
+    supports_fp64: bool
+    is_available: bool
+```
+
+### Context Manager
+
+```python
+from zenith.backends import CUDABackend
+
+with CUDABackend(device_id=0) as backend:
+    ptr = backend.allocate(1024)
+    # ... operations ...
+    backend.deallocate(ptr)
+# Backend automatically cleaned up
+```
+
+### Error Handling
+
+```python
+from zenith.backends import (
+    BackendError,
+    BackendNotAvailableError,
+    BackendMemoryError,
+    BackendExecutionError,
+    create_backend,
+)
+
+try:
+    backend = create_backend("cuda:0")
+except BackendNotAvailableError:
+    print("CUDA not available, falling back to CPU")
+    backend = create_backend("cpu:0")
+
+try:
+    ptr = backend.allocate(1024 * 1024 * 1024 * 100)  # 100 GB
+except BackendMemoryError as e:
+    print(f"Allocation failed: {e}")
+```
+
+---
+
 ## Version History
 
 | Version | Date | Changes |
