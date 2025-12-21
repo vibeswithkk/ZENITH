@@ -31,32 +31,32 @@ from .base import (
 logger = logging.getLogger("zenith.backends.rocm")
 
 
-def _detect_rocm_via_torch() -> bool:
-    """Detect ROCm through PyTorch."""
-    try:
-        import torch
-
-        # Check if PyTorch was built with ROCm
-        if hasattr(torch, "__config__"):
-            config = torch.__config__.show()
-            if "rocm" in config.lower() or "hip" in config.lower():
-                if torch.cuda.is_available():
-                    return True
-        # Alternative check via version string
-        if hasattr(torch.version, "hip") and torch.version.hip is not None:
-            return True
-    except Exception:
-        pass
-    return False
-
-
 def _detect_rocm_via_hip() -> bool:
-    """Detect ROCm through direct HIP library."""
+    """Detect ROCm through direct HIP library (fast, no import issues)."""
     try:
         hip = ctypes.CDLL("libamdhip64.so")
         count = ctypes.c_int(0)
         result = hip.hipGetDeviceCount(ctypes.byref(count))
         return result == 0 and count.value > 0
+    except (OSError, Exception):
+        pass
+    return False
+
+
+def _detect_rocm_via_torch() -> bool:
+    """Detect ROCm through PyTorch (only if torch already imported)."""
+    import sys
+
+    # Only check if torch is already imported to avoid import deadlock
+    if "torch" not in sys.modules:
+        return False
+
+    try:
+        import torch
+
+        # Quick check via version attribute (no config parsing)
+        if hasattr(torch.version, "hip") and torch.version.hip is not None:
+            return torch.cuda.is_available()
     except Exception:
         pass
     return False

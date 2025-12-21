@@ -35,8 +35,25 @@ from .base import (
 logger = logging.getLogger("zenith.backends.oneapi")
 
 
+def _detect_oneapi_via_level_zero() -> bool:
+    """Detect oneAPI through Level Zero library (fast, no import issues)."""
+    try:
+        ze = ctypes.CDLL("libze_loader.so")
+        # zeInit with ZE_INIT_FLAG_GPU_ONLY = 1
+        result = ze.zeInit(0)
+        if result == 0:
+            return True
+    except (OSError, Exception):
+        pass
+    return False
+
+
 def _detect_oneapi_via_dpctl() -> bool:
-    """Detect oneAPI through dpctl (Data Parallel Control)."""
+    """Detect oneAPI through dpctl (only if already imported)."""
+    import sys
+
+    if "dpctl" not in sys.modules:
+        return False
     try:
         import dpctl
 
@@ -48,25 +65,15 @@ def _detect_oneapi_via_dpctl() -> bool:
 
 
 def _detect_oneapi_via_torch() -> bool:
-    """Detect oneAPI through Intel Extension for PyTorch (IPEX)."""
+    """Detect oneAPI through IPEX (only if torch already imported)."""
+    import sys
+
+    if "torch" not in sys.modules:
+        return False
     try:
-        import intel_extension_for_pytorch as ipex
         import torch
 
         if hasattr(torch, "xpu") and torch.xpu.is_available():
-            return True
-    except Exception:
-        pass
-    return False
-
-
-def _detect_oneapi_via_level_zero() -> bool:
-    """Detect oneAPI through Level Zero library."""
-    try:
-        ze = ctypes.CDLL("libze_loader.so")
-        # zeInit
-        result = ze.zeInit(0)
-        if result == 0:
             return True
     except Exception:
         pass
