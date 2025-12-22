@@ -6,12 +6,14 @@
 # Core
 import zenith
 from zenith import backends
+from zenith.core import GraphIR, DataType
 
 # Optimization
-from zenith.optimization.qat import FakeQuantize, QATConfig
+from zenith.optimization import PassManager
+from zenith.optimization.quantization import quantize
 
 # Serving
-from zenith.serving.triton_client import TritonClient, MockTritonClient
+from zenith.serving import TritonBackend, export_to_onnx
 ```
 
 ## Version Info
@@ -23,7 +25,7 @@ print(f"Version: {zenith.__version__}")
 
 **Output:**
 ```
-Version: 0.1.4
+Version: 0.2.1
 ```
 
 ## Available Backends
@@ -33,17 +35,36 @@ from zenith import backends
 
 # Check availability
 print(backends.is_cpu_available())   # True
-print(backends.is_cuda_available())  # True/False
+print(backends.is_cuda_available())  # True/False (depends on GPU)
 
 # Get all backends
-print(backends.get_available_backends())
+print(backends.get_available_backends())  # ['cpu'] or ['cpu', 'cuda']
 ```
 
-**Output:**
+## Core Types
+
+```python
+from zenith.core import DataType, Shape
+
+# Data types
+DataType.Float32   # 32-bit floating point
+DataType.Float16   # 16-bit floating point (Tensor Core)
+DataType.Int8      # 8-bit integer (quantized)
+DataType.Int32     # 32-bit integer
+
+# Shapes
+shape = Shape([1, 3, 224, 224])  # NCHW format
 ```
-True
-False
-['cpu']
+
+## GraphIR (Intermediate Representation)
+
+```python
+from zenith.core import GraphIR
+
+# Create graph
+graph = GraphIR(name="my_model")
+print(f"Graph name: {graph.name}")
+print(f"Num nodes: {graph.num_nodes}")
 ```
 
 ## NumPy Compatibility
@@ -52,14 +73,16 @@ Zenith bekerja dengan NumPy arrays:
 
 ```python
 import numpy as np
-from zenith.optimization.qat import FakeQuantize
+from zenith.optimization.quantization import quantize
 
 # Create data
-data = np.random.randn(100).astype(np.float32)
+data = np.random.randn(1, 768).astype(np.float32)
 
-# Use with Zenith
-fq = FakeQuantize(num_bits=8)
-fq.observe(data)
+# Quantize to INT8
+quantized, scale, zp = quantize(data, num_bits=8)
+
+print(f"Original: {data.dtype}, {data.nbytes} bytes")
+print(f"Quantized: {quantized.dtype}, {quantized.nbytes} bytes")
 ```
 
 ---
