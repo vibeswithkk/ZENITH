@@ -210,9 +210,18 @@ class GraphExecutor:
             except ImportError:
                 pass
 
-        # CPU fallback
+        # CPU fallback - handle PyTorch tensors properly
+        if hasattr(tensor, "detach") and hasattr(tensor, "cpu"):
+            # PyTorch tensor (possibly on CUDA)
+            return tensor.detach().cpu().numpy()
         if hasattr(tensor, "numpy"):
-            return tensor.numpy()
+            # Try direct numpy, handle CUDA tensor
+            try:
+                return tensor.numpy()
+            except (TypeError, RuntimeError):
+                # CUDA tensor - need to move to CPU first
+                if hasattr(tensor, "cpu"):
+                    return tensor.cpu().numpy()
         return np.asarray(tensor)
 
     def _to_numpy(self, tensor: Any) -> np.ndarray:
