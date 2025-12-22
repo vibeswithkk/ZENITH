@@ -491,3 +491,71 @@ def measure_quantization_error(
         "max_abs_error": max_error,
         "snr_db": float(snr),
     }
+
+
+def quantize(
+    tensor: np.ndarray,
+    num_bits: int = 8,
+    method: CalibrationMethod = CalibrationMethod.MINMAX,
+    symmetric: bool = True,
+) -> tuple[np.ndarray, float, int]:
+    """
+    Convenience function to quantize a tensor.
+
+    Args:
+        tensor: Input tensor (FP32)
+        num_bits: Number of bits (default 8)
+        method: Calibration method
+        symmetric: Whether to use symmetric quantization
+
+    Returns:
+        (quantized_tensor, scale, zero_point)
+
+    Example:
+        >>> data = np.random.randn(1, 768).astype(np.float32)
+        >>> quantized, scale, zp = quantize(data)
+        >>> print(quantized.dtype)  # int8
+    """
+    # Create calibrator
+    if method == CalibrationMethod.MINMAX:
+        calibrator = MinMaxCalibrator(symmetric)
+    elif method == CalibrationMethod.PERCENTILE:
+        calibrator = PercentileCalibrator(symmetric=symmetric)
+    else:
+        calibrator = EntropyCalibrator(symmetric)
+
+    # Collect stats
+    stats = TensorStats()
+    stats.update(tensor)
+
+    # Compute params
+    params = calibrator.compute_params(stats)
+
+    # Quantize
+    quantized = params.quantize(tensor)
+
+    return quantized, params.scale, params.zero_point
+
+
+def dequantize(
+    tensor: np.ndarray,
+    scale: float,
+    zero_point: int = 0,
+) -> np.ndarray:
+    """
+    Convenience function to dequantize a tensor.
+
+    Args:
+        tensor: Quantized tensor (INT8)
+        scale: Scale factor
+        zero_point: Zero point
+
+    Returns:
+        Dequantized tensor (FP32)
+
+    Example:
+        >>> quantized, scale, zp = quantize(data)
+        >>> recovered = dequantize(quantized, scale, zp)
+    """
+    params = QuantizationParams(scale=scale, zero_point=zero_point)
+    return params.dequantize(tensor)
