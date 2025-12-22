@@ -758,6 +758,148 @@ void wmma_matmul_f16(const half *A, const half *B, float *C, int M, int N,
 #endif
 }
 
+// ============================================================================
+// PHASE 6: ADVANCED FUSED KERNELS
+// These kernels combine multiple operations to reduce memory bandwidth
+// Target: 50% reduction in memory traffic
+// ============================================================================
+
+/// Fused Residual Add + LayerNorm kernel
+/// Combines: output = LayerNorm(input + residual)
+/// Reduces memory round-trips from 3 to 1
+__global__ void fused_residual_layernorm_kernel(
+    const float *input, const float *residual, const float *gamma,
+    const float *beta, float *output, int batch, int hidden, float eps) {
+  int b = blockIdx.x;
+  if (b >= batch)
+    return;
+
+  extern __shared__ float smem[];
+
+  const float *in_row = input + b * hidden;
+  const float *res_row = residual + b * hidden;
+  float *out_row = output + b * hidden;
+
+  // Step 1: Compute sum for mean (fused add + reduction)
+  float local_sum = 0.0f;
+  for (int i = threadIdx.x; i < hidden; i += blockDim.x) {
+    float val = in_row[i] + res_row[i];
+    smem[i] = val; // Store fused result in shared memory
+    local_sum += val;
+  }
+
+  // Warp reduction for sum
+  local_sum = warp_reduce_sum(local_sum);
+
+  // Block reduction
+  int warp_id = threadIdx.x / 32;
+  int lane_id = threadIdx.x % 32;
+  __shared__ float warp_sums[8];
+
+  if (lane_id == 0)
+    warp_sums[warp_id] = local_sum;
+  __syncthreads();
+
+  float mean = 0.0f;
+  if (warp_id == 0) {
+    float val = (lane_id < blockDim.x / 32) ? warp_sums[lane_id] : 0.0f;
+    val = warp_reduce_sum(val);
+    if (lane_id == 0)
+      warp_sums[0] = val / hidden;
+  }
+  __syncthreads();
+  mean = warp_sums[0];
+
+  // Step 2: Compute variance
+  float local_var = 0.0f;
+  for (int i = threadIdx.x; i < hidden; i += blockDim.x) {
+    float diff = smem[i] - mean;
+    local_var += diff * diff;
+  }
+  local_var = warp_reduce_sum(local_var);
+
+  if (lane_id == 0)
+    warp_sums[warp_id] = local_var;
+  __syncthreads();
+
+  float var = 0.0f;
+  if (warp_id == 0) {
+    float val = (lane_id < blockDim.x / 32) ? warp_sums[lane_id] : 0.0f;
+    val = warp_reduce_sum(val);
+    if (lane_id == 0)
+      warp_sums[0] = val / hidden;
+  }
+  __syncthreads();
+  var = warp_sums[0];
+
+  // Step 3: Normalize and apply gamma/beta
+  float inv_std = rsqrtf(var + eps);
+  for (int i = threadIdx.x; i < hidden; i += blockDim.x) {
+    float normalized = (smem[i] - mean) * inv_std;
+    out_row[i] = normalized * gamma[i] + beta[i];
+  }
+}
+
+/// Wrapper for fused residual + layernorm
+void fused_residual_layernorm_f32(const float *input, const float *residual,
+                                  float *output, const float *gamma,
+                                  const float *beta, int batch, int hidden,
+                                  float eps) {
+  size_t smem_size = hidden * sizeof(float);
+  fused_residual_layernorm_kernel<<<batch, BLOCK_SIZE, smem_size>>>(
+      input, residual, gamma, beta, output, batch, hidden, eps);
+}
+
+/// Fused Bias + GELU activation kernel
+/// Combines: output = GELU(input + bias)
+/// GELU(x) = 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
+__global__ void fused_bias_gelu_kernel(const float *input, const float *bias,
+                                       float *output, int size, int hidden) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx >= size)
+    return;
+
+  int bias_idx = idx % hidden;
+  float x = input[idx] + bias[bias_idx];
+
+  // GELU approximation (matches PyTorch)
+  const float sqrt_2_over_pi = 0.7978845608f;
+  const float coef = 0.044715f;
+  float x3 = x * x * x;
+  float inner = sqrt_2_over_pi * (x + coef * x3);
+  output[idx] = 0.5f * x * (1.0f + tanhf(inner));
+}
+
+/// Wrapper for fused bias + gelu
+void fused_bias_gelu_f32(const float *input, const float *bias, float *output,
+                         int batch, int hidden) {
+  int size = batch * hidden;
+  int blocks = div_ceil(size, BLOCK_SIZE);
+  fused_bias_gelu_kernel<<<blocks, BLOCK_SIZE>>>(input, bias, output, size,
+                                                 hidden);
+}
+
+/// Fused Bias + ReLU kernel
+__global__ void fused_bias_relu_kernel(const float *input, const float *bias,
+                                       float *output, int size, int hidden) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx >= size)
+    return;
+
+  int bias_idx = idx % hidden;
+  float x = input[idx] + bias[bias_idx];
+  output[idx] = fmaxf(0.0f, x);
+}
+
+/// Wrapper for fused bias + relu
+void fused_bias_relu_f32(const float *input, const float *bias, float *output,
+                         int batch, int hidden) {
+  int size = batch * hidden;
+  int blocks = div_ceil(size, BLOCK_SIZE);
+  fused_bias_relu_kernel<<<blocks, BLOCK_SIZE>>>(input, bias, output, size,
+                                                 hidden);
+}
+
 } // namespace cuda_kernels
 } // namespace zenith
 
