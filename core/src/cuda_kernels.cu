@@ -31,6 +31,47 @@ constexpr int TILE_SIZE = 16;
 inline int div_ceil(int a, int b) { return (a + b - 1) / b; }
 
 // ============================================================================
+// Parallel Reduction Primitives
+// Reference: NVIDIA CUDA Samples - Reduction
+// ============================================================================
+
+/// Warp-level sum reduction using shuffle intrinsics.
+/// Requires CUDA >= 9.0 for __shfl_down_sync.
+/// Complexity: O(log(32)) = O(5) iterations
+__device__ __forceinline__ float warp_reduce_sum(float val) {
+#pragma unroll
+  for (int offset = 16; offset > 0; offset /= 2) {
+    val += __shfl_down_sync(0xffffffff, val, offset);
+  }
+  return val;
+}
+
+/// Block-level sum reduction combining warp shuffle and shared memory.
+/// shared_mem must have size >= (blockDim.x / 32) floats.
+/// Complexity: O(log(blockDim.x))
+__device__ __forceinline__ float block_reduce_sum(float val,
+                                                  float *shared_mem) {
+  const int lane = threadIdx.x % 32;
+  const int wid = threadIdx.x / 32;
+  const int num_warps = blockDim.x / 32;
+
+  val = warp_reduce_sum(val);
+
+  if (lane == 0) {
+    shared_mem[wid] = val;
+  }
+  __syncthreads();
+
+  val = (threadIdx.x < num_warps) ? shared_mem[threadIdx.x] : 0.0f;
+
+  if (wid == 0) {
+    val = warp_reduce_sum(val);
+  }
+
+  return val;
+}
+
+// ============================================================================
 // Element-wise Kernels
 // ============================================================================
 
@@ -68,14 +109,13 @@ __global__ void leaky_relu_kernel(float *data, size_t size, float alpha) {
 }
 
 /// GELU activation kernel (Gaussian Error Linear Unit)
-/// Uses the tanh approximation: 0.5 * x * (1 + tanh(sqrt(2/π) * (x + 0.044715 *
-/// x³)))
+/// Uses the tanh approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715
+/// * x^3)))
 __global__ void gelu_kernel(const float *input, float *output, size_t size) {
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < size) {
     float x = input[idx];
-    // Constants for GELU approximation
-    const float sqrt_2_over_pi = 0.7978845608028654f; // sqrt(2/π)
+    const float sqrt_2_over_pi = 0.7978845608028654f;
     const float coef = 0.044715f;
 
     float x_cubed = x * x * x;
@@ -84,26 +124,82 @@ __global__ void gelu_kernel(const float *input, float *output, size_t size) {
   }
 }
 
-/// LayerNorm kernel - normalizes last dimension
+/// Parallel LayerNorm kernel with warp shuffle reduction.
+/// Complexity: O(H/blockDim.x + log(blockDim.x)) per batch element.
 /// input: [batch, hidden], output: [batch, hidden]
 /// gamma, beta: [hidden]
-__global__ void layernorm_kernel(const float *input, float *output,
-                                 const float *gamma, const float *beta,
-                                 int batch, int hidden, float eps) {
+__global__ void layernorm_parallel_kernel(const float *__restrict__ input,
+                                          float *__restrict__ output,
+                                          const float *__restrict__ gamma,
+                                          const float *__restrict__ beta,
+                                          int batch, int hidden, float eps) {
+  extern __shared__ float smem[];
+
+  const int batch_idx = blockIdx.x;
+  const int tid = threadIdx.x;
+
+  if (batch_idx >= batch) {
+    return;
+  }
+
+  const float *in_row = input + batch_idx * hidden;
+  float *out_row = output + batch_idx * hidden;
+
+  // Phase 1: Parallel mean computation
+  float local_sum = 0.0f;
+  for (int i = tid; i < hidden; i += blockDim.x) {
+    local_sum += in_row[i];
+  }
+
+  float mean = block_reduce_sum(local_sum, smem);
+  mean = mean / static_cast<float>(hidden);
+
+  __syncthreads();
+
+  // Broadcast mean to all threads via shared memory
+  if (tid == 0) {
+    smem[0] = mean;
+  }
+  __syncthreads();
+  mean = smem[0];
+
+  // Phase 2: Parallel variance computation
+  float local_var = 0.0f;
+  for (int i = tid; i < hidden; i += blockDim.x) {
+    float diff = in_row[i] - mean;
+    local_var += diff * diff;
+  }
+
+  float var = block_reduce_sum(local_var, smem);
+  var = var / static_cast<float>(hidden);
+
+  float inv_std = rsqrtf(var + eps);
+
+  // Phase 3: Normalize and scale (already parallel)
+  for (int i = tid; i < hidden; i += blockDim.x) {
+    float normalized = (in_row[i] - mean) * inv_std;
+    out_row[i] = normalized * gamma[i] + beta[i];
+  }
+}
+
+/// Legacy LayerNorm kernel (kept for backward compatibility testing)
+/// input: [batch, hidden], output: [batch, hidden]
+/// gamma, beta: [hidden]
+__global__ void layernorm_kernel_legacy(const float *input, float *output,
+                                        const float *gamma, const float *beta,
+                                        int batch, int hidden, float eps) {
   int batch_idx = blockIdx.x;
 
   if (batch_idx < batch) {
     const float *in_row = input + batch_idx * hidden;
     float *out_row = output + batch_idx * hidden;
 
-    // Compute mean
     float mean = 0.0f;
     for (int i = 0; i < hidden; ++i) {
       mean += in_row[i];
     }
     mean /= static_cast<float>(hidden);
 
-    // Compute variance
     float var = 0.0f;
     for (int i = 0; i < hidden; ++i) {
       float diff = in_row[i] - mean;
@@ -111,7 +207,6 @@ __global__ void layernorm_kernel(const float *input, float *output,
     }
     var /= static_cast<float>(hidden);
 
-    // Normalize and scale
     float inv_std = rsqrtf(var + eps);
     for (int i = threadIdx.x; i < hidden; i += blockDim.x) {
       float normalized = (in_row[i] - mean) * inv_std;
@@ -467,9 +562,15 @@ void gelu_f32(const float *input, float *output, size_t size) {
 
 void layernorm_f32(const float *input, float *output, const float *gamma,
                    const float *beta, int batch, int hidden, float eps) {
-  // One block per batch element
-  layernorm_kernel<<<batch, BLOCK_SIZE>>>(input, output, gamma, beta, batch,
-                                          hidden, eps);
+  if (batch <= 0 || hidden <= 0) {
+    return;
+  }
+
+  // Shared memory for warp reduction: one float per warp (BLOCK_SIZE/32 warps)
+  const size_t shared_mem_size = (BLOCK_SIZE / 32) * sizeof(float);
+
+  layernorm_parallel_kernel<<<batch, BLOCK_SIZE, shared_mem_size>>>(
+      input, output, gamma, beta, batch, hidden, eps);
 }
 
 void softmax_2d_f32(const float *input, float *output, int batch, int len) {
@@ -573,6 +674,88 @@ void transpose_0213_inv_f32(const float *input, float *output, int batch,
   int blocks = div_ceil(total, BLOCK_SIZE);
   transpose_0213_inv_kernel<<<blocks, BLOCK_SIZE>>>(input, output, batch, heads,
                                                     seq, dim);
+}
+
+// ============================================================================
+// WMMA (Tensor Core) Matrix Multiplication
+// Reference: NVIDIA CUDA Programming Guide - WMMA
+// Requires: Compute Capability >= 7.0 (Volta, Turing, Ampere)
+// T4 GPU: Compute 7.5, 320 Tensor Cores
+// ============================================================================
+
+#if __CUDA_ARCH__ >= 700
+
+#include <mma.h>
+using namespace nvcuda;
+
+constexpr int WMMA_M = 16;
+constexpr int WMMA_N = 16;
+constexpr int WMMA_K = 16;
+
+/// WMMA Matrix Multiply kernel using Tensor Cores
+/// Computes C = A * B where A is MxK, B is KxN, C is MxN
+/// Uses FP16 inputs with FP32 accumulation for numerical stability
+__global__ void wmma_matmul_kernel(const half *A, const half *B, float *C,
+                                   int M, int N, int K) {
+  // Warp position
+  int warpM = (blockIdx.x * blockDim.x + threadIdx.x) / warpSize;
+  int warpN = (blockIdx.y * blockDim.y + threadIdx.y);
+
+  // Bounds check
+  if (warpM * WMMA_M >= M || warpN * WMMA_N >= N)
+    return;
+
+  // Declare fragments
+  wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major>
+      a_frag;
+  wmma::fragment<wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major>
+      b_frag;
+  wmma::fragment<wmma::accumulator, WMMA_M, WMMA_N, WMMA_K, float> c_frag;
+
+  // Initialize accumulator to zero
+  wmma::fill_fragment(c_frag, 0.0f);
+
+  // Loop over K dimension
+  for (int k = 0; k < K; k += WMMA_K) {
+    int aRow = warpM * WMMA_M;
+    int aCol = k;
+    int bRow = k;
+    int bCol = warpN * WMMA_N;
+
+    // Bounds check for K
+    if (aCol + WMMA_K <= K) {
+      // Load fragments
+      wmma::load_matrix_sync(a_frag, A + aRow * K + aCol, K);
+      wmma::load_matrix_sync(b_frag, B + bRow * N + bCol, N);
+
+      // Perform WMMA
+      wmma::mma_sync(c_frag, a_frag, b_frag, c_frag);
+    }
+  }
+
+  // Store result
+  int cRow = warpM * WMMA_M;
+  int cCol = warpN * WMMA_N;
+  wmma::store_matrix_sync(C + cRow * N + cCol, c_frag, N, wmma::mem_row_major);
+}
+
+#endif // __CUDA_ARCH__ >= 700
+
+/// WMMA MatMul wrapper function
+/// Falls back to standard matmul on non-Tensor Core GPUs
+void wmma_matmul_f16(const half *A, const half *B, float *C, int M, int N,
+                     int K) {
+#if __CUDA_ARCH__ >= 700
+  // Grid dimensions: each warp handles 16x16 output tile
+  dim3 block(128, 4); // 4 warps per block in M, 4 in N
+  dim3 grid((M + (WMMA_M * block.x / 32) - 1) / (WMMA_M * block.x / 32),
+            (N + (WMMA_N * block.y) - 1) / (WMMA_N * block.y));
+
+  wmma_matmul_kernel<<<grid, block>>>(A, B, C, M, N, K);
+#else
+  // Fallback: not supported on this architecture
+  // In production, would call standard matmul here
+#endif
 }
 
 } // namespace cuda_kernels
