@@ -116,6 +116,19 @@ try:
         simulate_qat_forward,
         measure_qat_error,
     )
+    from .advanced_fusion import (
+        FusionPriority,
+        AdvancedFusionPattern,
+        AdvancedFusionPass,
+        FlashAttentionFusion,
+        TransformerBlockFusion,
+        QKV_PROJECTION_PATTERN,
+        SELF_ATTENTION_PATTERN,
+        ATTENTION_EPILOGUE_PATTERN,
+        GATED_MLP_PATTERN,
+        FFN_BLOCK_PATTERN,
+        ALL_ADVANCED_PATTERNS,
+    )
 
     _PHASE2_AVAILABLE = True
 except ImportError:
@@ -153,6 +166,18 @@ class OptimizationPass(ABC):
 
     def __repr__(self) -> str:
         return f"<OptimizationPass: {self.name}>"
+
+
+def _clone_graph_structure(graph: GraphIR) -> GraphIR:
+    """Clone graph structure (inputs, outputs, constants) without nodes.
+
+    This is a helper to avoid code duplication across optimization passes.
+    """
+    new_graph = GraphIR(name=graph.name)
+    new_graph.inputs = copy.deepcopy(graph.inputs)
+    new_graph.outputs = copy.deepcopy(graph.outputs)
+    new_graph.constants = copy.deepcopy(graph.constants)
+    return new_graph
 
 
 class ConstantFoldingPass(OptimizationPass):
@@ -222,10 +247,7 @@ class ConstantFoldingPass(OptimizationPass):
         # Apply modifications
         if modified:
             # Create a new graph with modifications
-            new_graph = GraphIR(name=graph.name)
-            new_graph.inputs = copy.deepcopy(graph.inputs)
-            new_graph.outputs = copy.deepcopy(graph.outputs)
-            new_graph.constants = copy.deepcopy(graph.constants)
+            new_graph = _clone_graph_structure(graph)
 
             # Add new constants
             for name, data in constants_to_add.items():
@@ -299,10 +321,7 @@ class DeadCodeEliminationPass(OptimizationPass):
             return graph, False
 
         # Create new graph without dead nodes
-        new_graph = GraphIR(name=graph.name)
-        new_graph.inputs = copy.deepcopy(graph.inputs)
-        new_graph.outputs = copy.deepcopy(graph.outputs)
-        new_graph.constants = copy.deepcopy(graph.constants)
+        new_graph = _clone_graph_structure(graph)
 
         for node in graph.nodes:
             if node.name not in dead_nodes:
@@ -455,10 +474,7 @@ class OperatorFusionPass(OptimizationPass):
             return graph, False
 
         # Build new graph with fused operations
-        new_graph = GraphIR(name=graph.name)
-        new_graph.inputs = copy.deepcopy(graph.inputs)
-        new_graph.outputs = copy.deepcopy(graph.outputs)
-        new_graph.constants = copy.deepcopy(graph.constants)
+        new_graph = _clone_graph_structure(graph)
 
         # Add non-fused nodes
         for node in graph.nodes:
