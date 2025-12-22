@@ -59,20 +59,50 @@ The project represents nearly a year of dedicated work in building a production-
 
 ## Installation
 
+### Quick Install
+
 ```bash
-# Install from PyPI
 pip install pyzenith
+```
 
-# Install with optional dependencies
-pip install pyzenith[onnx,pytorch]
+### Installation Options
 
-# Development installation
+Choose the right installation based on your needs:
+
+| Command | Use Case | What's Included |
+|---------|----------|-----------------|
+| `pip install pyzenith` | Quick start, testing | Core only (numpy) |
+| `pip install pyzenith[pytorch]` | PyTorch users | + PyTorch 2.0+ |
+| `pip install pyzenith[onnx]` | Model deployment, inference | + ONNX + ONNX Runtime |
+| `pip install pyzenith[tensorflow]` | TensorFlow users | + TensorFlow + tf2onnx |
+| `pip install pyzenith[jax]` | JAX/Flax users | + JAX + JAXlib |
+| `pip install pyzenith[all]` | Full functionality | All frameworks |
+| `pip install pyzenith[dev]` | Contributors | + pytest, black, mypy, ruff |
+
+### Recommended Installation
+
+```bash
+# For most ML users (PyTorch + ONNX export)
+pip install pyzenith[pytorch,onnx]
+
+# For full framework support
+pip install pyzenith[all]
+
+# For development/contribution
+pip install pyzenith[dev]
+```
+
+### Development Installation
+
+```bash
 git clone https://github.com/vibeswithkk/ZENITH.git
 cd ZENITH
 pip install -e ".[dev]"
 ```
 
-### CUDA Build (for GPU acceleration)
+### CUDA Build (for Maximum GPU Performance)
+
+For full CUDA kernel acceleration (50x speedup):
 
 ```bash
 # On Google Colab or Linux with CUDA
@@ -84,6 +114,8 @@ bash build_cuda.sh
 python -c "from zenith._zenith_core import backends; print(backends.list_available())"
 # Output: ['cpu', 'cuda']
 ```
+
+> **Note:** Without CUDA build, Zenith still provides full performance via PyTorch/TensorFlow CUDA backends.
 
 ---
 
