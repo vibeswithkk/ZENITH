@@ -88,6 +88,13 @@ from .serving import (
     ZenithModelExporter,
 )
 
+# Monitoring (Production metrics)
+from .monitoring import (
+    start_server as start_monitoring_server,
+    MetricsServer,
+    PrometheusExporter,
+)
+
 
 def is_native() -> bool:
     """Check if native C++ bindings are available."""
@@ -137,6 +144,10 @@ __all__ = [
     "export_to_onnx",
     "export_to_torchscript",
     "ZenithModelExporter",
+    # Monitoring
+    "start_monitoring_server",
+    "MetricsServer",
+    "PrometheusExporter",
     # Version
     "__version__",
     "__author__",
