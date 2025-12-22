@@ -652,7 +652,8 @@ class PyTorchAdapter(BaseAdapter):
             Zenith backend for torch.compile.
 
             This function receives an FX GraphModule and example inputs,
-            optimizes them through Zenith, and returns an optimized callable.
+            optimizes them through Zenith's runtime, and returns an optimized callable
+            that uses Zenith's CUDA kernels for execution.
             """
             logger.info(
                 f"Zenith backend compiling with target={target}, precision={precision}"
@@ -667,24 +668,77 @@ class PyTorchAdapter(BaseAdapter):
                 # Return original function as fallback
                 return gm.forward
 
-            # Apply precision transformations
+            # Apply precision transformations to the original module
             if precision == "fp16":
                 gm = self._apply_fp16(gm)
             elif precision == "bf16":
                 gm = self._apply_bf16(gm)
 
-            # Compile the graph module
-            compiled_fn = gm.forward
+            # Try to use ZenithEngine for actual kernel execution
+            try:
+                from ..runtime import ZenithEngine, CompileConfig
 
-            # Wrap with device placement
-            if target.startswith("cuda"):
+                # Create engine and config
+                engine = ZenithEngine(backend=target.split(":")[0])
+                config = CompileConfig(
+                    precision=precision,
+                    mode=self._config.mode,
+                    verbose=2 if self._config.enable_profiling else 0,
+                )
 
-                def cuda_wrapper(*args, **kw):
-                    return compiled_fn(*args, **kw)
+                # Compile with ZenithEngine
+                compiled_model = engine.compile(
+                    graph_ir=graph_ir, config=config, original_model=gm.forward
+                )
 
-                return cuda_wrapper
+                logger.info(
+                    f"Zenith compilation successful: "
+                    f"{compiled_model.compile_stats.num_supported_ops} ops optimized"
+                )
 
-            return compiled_fn
+                # Create wrapper that converts PyTorch tensors properly
+                def zenith_optimized_forward(*args, **kw):
+                    """Execute using Zenith's optimized kernels."""
+                    # Build input dict from args
+                    inputs = {}
+                    for i, arg in enumerate(args):
+                        inputs[f"input_{i}"] = arg
+                    inputs.update(kw)
+
+                    # Execute with Zenith runtime
+                    try:
+                        output = compiled_model.run(inputs, return_dict=False)
+
+                        # Convert back to PyTorch tensor if needed
+                        if hasattr(output, "shape") and not hasattr(output, "grad_fn"):
+                            output = torch.from_numpy(output)
+                            if target.startswith("cuda"):
+                                output = output.cuda()
+
+                        return output
+                    except Exception as e:
+                        # Fallback to original on runtime error
+                        logger.debug(f"Zenith runtime fallback: {e}")
+                        return gm.forward(*args, **kw)
+
+                return zenith_optimized_forward
+
+            except Exception as e:
+                logger.warning(f"ZenithEngine compilation failed: {e}")
+                logger.warning("Falling back to PyTorch execution")
+
+                # Fallback to original PyTorch behavior
+                compiled_fn = gm.forward
+
+                # Wrap with device placement
+                if target.startswith("cuda"):
+
+                    def cuda_wrapper(*args, **kw):
+                        return compiled_fn(*args, **kw)
+
+                    return cuda_wrapper
+
+                return compiled_fn
 
         return zenith_backend
 

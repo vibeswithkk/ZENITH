@@ -14,8 +14,8 @@ from zenith.api import (
     compile,
     optimize,
     _detect_framework,
-    CompiledModel,
 )
+from zenith.runtime.engine import CompiledModel
 from zenith.core import GraphIR, TensorDescriptor, Shape, DataType
 
 

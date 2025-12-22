@@ -62,6 +62,32 @@ from . import torch
 # Main API functions
 from .api import compile, optimize
 
+# Observability
+from .observability import set_verbosity, Verbosity
+
+# Errors
+from .errors import (
+    ZenithError,
+    CompilationError,
+    UnsupportedOperationError,
+    PrecisionError,
+    KernelError,
+    ZenithMemoryError,
+    ValidationError,
+    ConfigurationError,
+)
+
+# Serving (Triton Inference Server integration)
+from .serving import (
+    TritonBackend,
+    TritonBackendConfig,
+    ModelConfig,
+    export_to_triton,
+    export_to_onnx,
+    export_to_torchscript,
+    ZenithModelExporter,
+)
+
 
 def is_native() -> bool:
     """Check if native C++ bindings are available."""
@@ -91,6 +117,26 @@ __all__ = [
     "compile",
     "optimize",
     "is_native",
+    # Observability
+    "set_verbosity",
+    "Verbosity",
+    # Errors
+    "ZenithError",
+    "CompilationError",
+    "UnsupportedOperationError",
+    "PrecisionError",
+    "KernelError",
+    "ZenithMemoryError",
+    "ValidationError",
+    "ConfigurationError",
+    # Serving (Triton)
+    "TritonBackend",
+    "TritonBackendConfig",
+    "ModelConfig",
+    "export_to_triton",
+    "export_to_onnx",
+    "export_to_torchscript",
+    "ZenithModelExporter",
     # Version
     "__version__",
     "__author__",

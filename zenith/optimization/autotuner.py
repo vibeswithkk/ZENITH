@@ -20,6 +20,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Callable, Any
+from itertools import product
 import numpy as np
 
 
@@ -82,7 +83,7 @@ class SearchSpace:
         return total
 
     def iterate(self):
-        """Iterate over all configurations."""
+        """Iterate over all configurations using itertools.product."""
         if not self.params:
             yield {}
             return
@@ -90,25 +91,40 @@ class SearchSpace:
         param_names = list(self.params.keys())
         param_values = list(self.params.values())
 
-        def recursive(idx: int, current: dict):
-            if idx == len(param_names):
-                yield current.copy()
-                return
-            for val in param_values[idx]:
-                current[param_names[idx]] = val
-                yield from recursive(idx + 1, current)
+        for combination in product(*param_values):
+            yield dict(zip(param_names, combination))
 
-        yield from recursive(0, {})
+    def _config_at_index(self, idx: int) -> dict:
+        """Get configuration at specific index without full iteration.
+
+        This enables O(1) access to any configuration in the search space.
+        """
+        config = {}
+        for name, values in self.params.items():
+            config[name] = values[idx % len(values)]
+            idx //= len(values)
+        return config
 
     def sample(self, n: int, rng: np.random.Generator | None = None):
         """Randomly sample n configurations."""
         if rng is None:
             rng = np.random.default_rng()
 
-        all_configs = list(self.iterate())
-        n = min(n, len(all_configs))
-        indices = rng.choice(len(all_configs), size=n, replace=False)
-        return [all_configs[i] for i in indices]
+        space_size = self.size()
+        if space_size == 0:
+            return []
+
+        n = min(n, space_size)
+
+        # For small spaces or when sampling most of it, materialize
+        if space_size <= n * 2:
+            all_configs = list(self.iterate())
+            indices = rng.choice(len(all_configs), size=n, replace=False)
+            return [all_configs[i] for i in indices]
+
+        # For large spaces, use indexed sampling
+        indices = rng.choice(space_size, size=n, replace=False)
+        return [self._config_at_index(i) for i in indices]
 
 
 # Predefined search spaces for common operations
