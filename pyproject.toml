@@ -58,7 +58,7 @@ jax = [
     "jaxlib>=0.4.0",
 ]
 all = [
-    "zenith-ml[onnx,pytorch,tensorflow,jax]",
+    "pyzenith[onnx,pytorch,tensorflow,jax]",
 ]
 dev = [
     "pytest>=7.0.0",
