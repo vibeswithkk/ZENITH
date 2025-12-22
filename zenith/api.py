@@ -107,6 +107,33 @@ def optimize(model: Any, **kwargs) -> Any:
 
 def _detect_framework(model: Any) -> str:
     """Detect which ML framework the model comes from."""
+    # Try isinstance checks first (more reliable for user-defined classes)
+    try:
+        import torch
+
+        if isinstance(model, torch.nn.Module):
+            return "pytorch"
+    except ImportError:
+        pass
+
+    try:
+        import tensorflow as tf
+
+        if isinstance(model, (tf.keras.Model, tf.Module)):
+            return "tensorflow"
+    except ImportError:
+        pass
+
+    try:
+        import jax
+
+        # JAX functions are typically callable
+        if hasattr(model, "__call__") and "jax" in str(type(model)):
+            return "jax"
+    except ImportError:
+        pass
+
+    # Fallback to module name check
     model_type = type(model).__module__
 
     if "torch" in model_type:
