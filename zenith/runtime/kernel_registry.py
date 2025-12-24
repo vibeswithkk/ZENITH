@@ -165,23 +165,39 @@ class KernelRegistry:
 
     def initialize(self) -> bool:
         """
-        Initialize registry with all available CUDA kernels.
+        Initialize registry with all available kernels.
+
+        Priority order:
+        1. Native CUDA kernels (_zenith_core.kernels) - highest performance
+        2. PyTorch GPU kernels (pytorch_kernels) - GPU acceleration via PyTorch
+        3. CPU fallback kernels (numpy-based) - baseline
 
         Returns:
-            True if CUDA kernels are available, False otherwise
+            True if GPU kernels (native or PyTorch) are available, False otherwise
         """
         if self._initialized:
             return True
 
+        # Try native CUDA kernels first
         try:
             self._register_cuda_kernels()
             self._initialized = True
             return True
-        except ImportError:
-            # CUDA not available, register CPU fallbacks
-            self._register_cpu_kernels()
+        except (ImportError, AttributeError):
+            pass
+
+        # Try PyTorch GPU kernels
+        try:
+            self._register_pytorch_gpu_kernels()
             self._initialized = True
-            return False
+            return True
+        except ImportError:
+            pass
+
+        # Fall back to CPU kernels
+        self._register_cpu_kernels()
+        self._initialized = True
+        return False
 
     def _register_cuda_kernels(self) -> None:
         """Register all CUDA kernels from _zenith_core."""
@@ -491,6 +507,168 @@ class KernelRegistry:
                     priority=20,
                 )
             )
+
+    def _register_pytorch_gpu_kernels(self) -> None:
+        """
+        Register PyTorch GPU kernels.
+
+        These use PyTorch's CUDA operations (cuBLAS, cuDNN) for GPU acceleration.
+        Priority 15: Higher than CPU (1) but lower than native CUDA (20).
+        """
+        from . import pytorch_kernels
+
+        if not pytorch_kernels.is_available():
+            raise ImportError("PyTorch GPU not available")
+
+        kernel_map = pytorch_kernels.get_kernel_map()
+
+        # Linear / MatMul
+        self.register(
+            KernelSpec(
+                name="pytorch_matmul_fp32",
+                op_types=["MatMul", "Gemm"],
+                precision=Precision.FP32,
+                kernel_fn=kernel_map["MatMul"],
+                priority=15,
+            )
+        )
+
+        self.register(
+            KernelSpec(
+                name="pytorch_linear_fp32",
+                op_types=["Linear"],
+                precision=Precision.FP32,
+                kernel_fn=kernel_map["Linear"],
+                priority=15,
+            )
+        )
+
+        # Convolution
+        self.register(
+            KernelSpec(
+                name="pytorch_conv2d_fp32",
+                op_types=["Conv", "Conv2d", "Convolution"],
+                precision=Precision.FP32,
+                kernel_fn=kernel_map["Conv2d"],
+                priority=15,
+            )
+        )
+
+        # Activation functions
+        self.register(
+            KernelSpec(
+                name="pytorch_relu_fp32",
+                op_types=["Relu", "ReLU"],
+                precision=Precision.FP32,
+                kernel_fn=kernel_map["ReLU"],
+                priority=15,
+            )
+        )
+
+        self.register(
+            KernelSpec(
+                name="pytorch_gelu_fp32",
+                op_types=["Gelu", "GELU"],
+                precision=Precision.FP32,
+                kernel_fn=kernel_map["GELU"],
+                priority=15,
+            )
+        )
+
+        self.register(
+            KernelSpec(
+                name="pytorch_sigmoid_fp32",
+                op_types=["Sigmoid"],
+                precision=Precision.FP32,
+                kernel_fn=kernel_map["Sigmoid"],
+                priority=15,
+            )
+        )
+
+        self.register(
+            KernelSpec(
+                name="pytorch_softmax_fp32",
+                op_types=["Softmax"],
+                precision=Precision.FP32,
+                kernel_fn=kernel_map["Softmax"],
+                priority=15,
+            )
+        )
+
+        # Elementwise
+        self.register(
+            KernelSpec(
+                name="pytorch_add_fp32",
+                op_types=["Add"],
+                precision=Precision.FP32,
+                kernel_fn=kernel_map["Add"],
+                priority=15,
+            )
+        )
+
+        # Attention
+        self.register(
+            KernelSpec(
+                name="pytorch_attention_fp32",
+                op_types=["Attention", "ScaledDotProductAttention"],
+                precision=Precision.FP32,
+                kernel_fn=kernel_map["Attention"],
+                priority=15,
+            )
+        )
+
+        # Fused operations (higher priority within PyTorch tier)
+        self.register(
+            KernelSpec(
+                name="pytorch_fused_add_relu",
+                op_types=["FusedAddReLU", "Add+ReLU"],
+                precision=Precision.FP32,
+                kernel_fn=kernel_map["FusedAddReLU"],
+                priority=17,
+            )
+        )
+
+        self.register(
+            KernelSpec(
+                name="pytorch_fused_bias_gelu",
+                op_types=["FusedBiasGeLU", "Bias+GELU"],
+                precision=Precision.FP32,
+                kernel_fn=kernel_map["FusedBiasGeLU"],
+                priority=17,
+            )
+        )
+
+        # Pooling
+        self.register(
+            KernelSpec(
+                name="pytorch_maxpool2d_fp32",
+                op_types=["MaxPool", "MaxPool2d", "MaxPooling"],
+                precision=Precision.FP32,
+                kernel_fn=kernel_map["MaxPool2d"],
+                priority=15,
+            )
+        )
+
+        # Reduction
+        self.register(
+            KernelSpec(
+                name="pytorch_sum_fp32",
+                op_types=["Sum", "ReduceSum"],
+                precision=Precision.FP32,
+                kernel_fn=kernel_map["ReduceSum"],
+                priority=15,
+            )
+        )
+
+        self.register(
+            KernelSpec(
+                name="pytorch_mean_fp32",
+                op_types=["Mean", "ReduceMean"],
+                precision=Precision.FP32,
+                kernel_fn=kernel_map["ReduceMean"],
+                priority=15,
+            )
+        )
 
     def _register_cpu_kernels(self) -> None:
         """Register CPU fallback kernels (numpy-based)."""

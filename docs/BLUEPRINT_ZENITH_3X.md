@@ -17,13 +17,13 @@ Berdasarkan audit mendalam terhadap codebase Zenith, telah diidentifikasi **7 ma
 
 | # | Masalah | Dampak | Priority |
 |---|---------|--------|----------|
-| 1 | Zenith Runtime tidak ada | Kernels tidak dipanggil | CRITICAL |
-| 2 | GraphIR → Kernel Dispatch terputus | Optimization sia-sia | CRITICAL |
-| 3 | API tidak konsisten (7 cara berbeda) | User bingung | HIGH |
-| 4 | Benchmark tidak representatif | Tidak bisa prove value | HIGH |
-| 5 | Dokumentasi tidak lengkap | User tidak tahu cara pakai | MEDIUM |
-| 6 | Error handling lemah | Silent failures | MEDIUM |
-| 7 | Logging/Monitoring tidak ada | Tidak ada visibility | LOW-MED |
+| 1 | Zenith Runtime tidak ada | Kernels tidak dipanggil | 🔴 CRITICAL |
+| 2 | GraphIR → Kernel Dispatch terputus | Optimization sia-sia | 🔴 CRITICAL |
+| 3 | API tidak konsisten (7 cara berbeda) | User bingung | 🟡 HIGH |
+| 4 | Benchmark tidak representatif | Tidak bisa prove value | 🟡 HIGH |
+| 5 | Dokumentasi tidak lengkap | User tidak tahu cara pakai | 🟠 MEDIUM |
+| 6 | Error handling lemah | Silent failures | 🟠 MEDIUM |
+| 7 | Logging/Monitoring tidak ada | Tidak ada visibility | 🟢 LOW-MED |
 
 ---
 
@@ -149,60 +149,60 @@ Berdasarkan audit mendalam terhadap codebase Zenith, telah diidentifikasi **7 ma
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              USER LAYER                                     │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
 │  │  import zenith                                                       │   │
-│  │  model = zenith.compile(pytorch_model, target="cuda", precision="fp16") │
+│  │  model = zenith.compile(pytorch_model, target="cuda", precision="fp16")  │
 │  │  output = model(input)  # FAST! Uses Zenith kernels                  │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
+│  └─────────────────────────────────────────────────────────────────────┘    │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                           UNIFIED API LAYER                                 │
 │  zenith/                                                                    │
-│  ├── api.py          # zenith.compile() - ENTRY POINT                      │
-│  ├── config.py       # [NEW] Global configuration                          │
-│  └── logger.py       # [NEW] Structured logging                            │
+│  ├── api.py          # zenith.compile() - ENTRY POINT                       │
+│  ├── config.py       # [NEW] Global configuration                           │
+│  └── logger.py       # [NEW] Structured logging                             │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                         ADAPTER LAYER (Existing)                            │
 │  zenith/adapters/                                                           │
-│  ├── pytorch_adapter.py   # PyTorch → GraphIR [UPDATE: connect to runtime] │
+│  ├── pytorch_adapter.py   # PyTorch → GraphIR [UPDATE: connect to runtime]  │
 │  ├── tensorflow_adapter.py                                                  │
 │  ├── jax_adapter.py                                                         │
 │  └── onnx_adapter.py                                                        │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                       OPTIMIZATION LAYER (Existing)                         │
 │  zenith/optimization/                                                       │
-│  ├── fusion_pass.py       # Conv+BN+ReLU fusion                            │
-│  ├── quantization.py      # INT8 quantization                              │
-│  ├── mixed_precision.py   # FP16/BF16                                      │
-│  ├── autotuner.py         # Kernel auto-tuning                             │
-│  └── advanced_fusion.py   # Transformer fusion                             │
+│  ├── fusion_pass.py       # Conv+BN+ReLU fusion                             │
+│  ├── quantization.py      # INT8 quantization                               │
+│  ├── mixed_precision.py   # FP16/BF16                                       │
+│  ├── autotuner.py         # Kernel auto-tuning                              │
+│  └── advanced_fusion.py   # Transformer fusion                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                      RUNTIME LAYER (NEW - Critical)                         │
 │  zenith/runtime/                                                            │
 │  ├── __init__.py                                                            │
-│  ├── engine.py           # [NEW] ZenithEngine - main runtime               │
-│  ├── executor.py         # [NEW] GraphExecutor - executes optimized graph  │
-│  ├── dispatcher.py       # [NEW] KernelDispatcher - routes ops to kernels  │
-│  ├── context.py          # [NEW] ExecutionContext - holds state            │
-│  ├── memory_manager.py   # [NEW] GPU memory management                     │
-│  └── cuda_graphs.py      # [NEW] CUDA Graphs for low-latency               │
+│  ├── engine.py           # [NEW] ZenithEngine - main runtime                │
+│  ├── executor.py         # [NEW] GraphExecutor - executes optimized graph   │
+│  ├── dispatcher.py       # [NEW] KernelDispatcher - routes ops to kernels   │
+│  ├── context.py          # [NEW] ExecutionContext - holds state             │
+│  ├── memory_manager.py   # [NEW] GPU memory management                      │
+│  └── cuda_graphs.py      # [NEW] CUDA Graphs for low-latency                │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                       KERNEL LAYER (Existing - Fast)                        │
 │  core/src/                                                                  │
-│  ├── cuda_kernels.cu        # Linear, Conv, MatMul                         │
-│  ├── fp16_kernels.cu        # FP16 with Tensor Cores                       │
-│  ├── fused_kernels.cu       # Add+LayerNorm, Bias+ReLU                     │
-│  ├── transformer_kernels.cu # Attention, GELU                              │
-│  ├── flash_attention.cu     # Flash Attention                              │
-│  └── flash_attention_v2.cu  # Flash Attention V2                           │
+│  ├── cuda_kernels.cu        # Linear, Conv, MatMul                          │
+│  ├── fp16_kernels.cu        # FP16 with Tensor Cores                        │
+│  ├── fused_kernels.cu       # Add+LayerNorm, Bias+ReLU                      │
+│  ├── transformer_kernels.cu # Attention, GELU                               │
+│  ├── flash_attention.cu     # Flash Attention                               │
+│  └── flash_attention_v2.cu  # Flash Attention V2                            │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                      BACKEND LAYER (Existing)                               │
 │  zenith/backends/                                                           │
-│  ├── cuda_backend.py     # [UPDATE: register kernel capabilities]          │
+│  ├── cuda_backend.py     # [UPDATE: register kernel capabilities]           │
 │  ├── rocm_backend.py                                                        │
 │  └── cpu_backend.py                                                         │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                          HARDWARE                                           │
-│  NVIDIA GPU (CUDA) | AMD GPU (ROCm) | CPU (AVX/NEON)                       │
+│  NVIDIA GPU (CUDA) | AMD GPU (ROCm) | CPU (AVX/NEON)                        │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -224,7 +224,7 @@ User: model = zenith.compile(pytorch_model, target="cuda")
 │  PassManager.run(graph_ir)                                      │
 │  - ConstantFolding                                              │
 │  - DeadCodeElimination                                          │
-│  - FusionPass (Conv+BN+ReLU, Add+LayerNorm)                    │
+│  - FusionPass (Conv+BN+ReLU, Add+LayerNorm)                     │
 │  - LayoutOptimization                                           │
 │  Output: Optimized GraphIR                                      │
 └─────────────────────────────────────────────────────────────────┘
