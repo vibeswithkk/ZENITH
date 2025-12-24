@@ -9,6 +9,17 @@ def setup_torch_extensions_path():
     """Add torch extensions cache directory to sys.path."""
     import glob
 
+    # First, import torch to set up library paths
+    import torch
+
+    # Add torch lib directory to LD_LIBRARY_PATH for libc10.so etc.
+    torch_lib = os.path.dirname(torch.__file__) + "/lib"
+    current_ld = os.environ.get("LD_LIBRARY_PATH", "")
+    if torch_lib not in current_ld:
+        os.environ["LD_LIBRARY_PATH"] = f"{torch_lib}:{current_ld}"
+        # Note: This won't take effect for current process's linker
+        # but we've already loaded torch so libraries should be available
+
     # Standard cache locations for JIT extensions
     home = os.path.expanduser("~")
     possible_patterns = [
