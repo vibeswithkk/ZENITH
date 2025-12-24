@@ -697,25 +697,24 @@ class PyTorchAdapter(BaseAdapter):
                 )
 
                 # Create wrapper that converts PyTorch tensors properly
+                # Use OptimizedExecutor for direct tensor execution
+                from ..runtime.cuda_optimized import create_optimized_wrapper
+
+                # Create optimized wrapper that uses torch.autocast
+                optimized_fn = create_optimized_wrapper(
+                    gm.forward, precision=precision, device=target
+                )
+
+                logger.info(
+                    f"Zenith compilation successful: "
+                    f"{compiled_model.compile_stats.num_supported_ops} ops optimized"
+                )
+
                 def zenith_optimized_forward(*args, **kw):
-                    """Execute using Zenith's optimized kernels."""
-                    # Build input dict from args
-                    inputs = {}
-                    for i, arg in enumerate(args):
-                        inputs[f"input_{i}"] = arg
-                    inputs.update(kw)
-
-                    # Execute with Zenith runtime
+                    """Execute using Zenith's optimized kernels with autocast."""
                     try:
-                        output = compiled_model.run(inputs, return_dict=False)
-
-                        # Convert back to PyTorch tensor if needed
-                        if hasattr(output, "shape") and not hasattr(output, "grad_fn"):
-                            output = torch.from_numpy(output)
-                            if target.startswith("cuda"):
-                                output = output.cuda()
-
-                        return output
+                        # Use optimized wrapper for direct tensor execution
+                        return optimized_fn(*args, **kw)
                     except Exception as e:
                         # Fallback to original on runtime error
                         logger.debug(f"Zenith runtime fallback: {e}")
