@@ -7,30 +7,25 @@ import sys
 
 def setup_torch_extensions_path():
     """Add torch extensions cache directory to sys.path."""
-    # Torch JIT-compiles extensions to ~/.cache/torch_extensions/
-    # We need to add this to sys.path for cross-process import
-    import torch
+    import glob
 
-    # Get the cache directory where torch stores JIT extensions
-    cache_dir = os.path.join(
-        torch.utils.cpp_extension._get_build_directory("zenith_cuda", False),
-    )
-
-    # Also check standard locations
-    possible_paths = [
-        cache_dir,
-        os.path.expanduser("~/.cache/torch_extensions/py312_cu126/zenith_cuda"),
-        os.path.expanduser("~/.cache/torch_extensions/py311_cu121/zenith_cuda"),
-        "/root/.cache/torch_extensions/py312_cu126/zenith_cuda",  # Colab
+    # Standard cache locations for JIT extensions
+    home = os.path.expanduser("~")
+    possible_patterns = [
+        f"{home}/.cache/torch_extensions/*/zenith_cuda",
+        "/root/.cache/torch_extensions/*/zenith_cuda",  # Colab
+        "/tmp/torch_extensions/*/zenith_cuda",
     ]
 
-    for path in possible_paths:
-        if os.path.exists(path):
-            if path not in sys.path:
+    for pattern in possible_patterns:
+        matches = glob.glob(pattern)
+        for path in matches:
+            if os.path.exists(path) and path not in sys.path:
                 sys.path.insert(0, path)
-            print(f"  Added to path: {path}")
-            return True
+                print(f"  Added to path: {path}")
+                return True
 
+    print("  No cached zenith_cuda found")
     return False
 
 
