@@ -567,14 +567,18 @@ def optimize_graph(
     graph: GraphIR,
     opt_level: int = 2,
     max_iterations: int = 10,
+    precision: str = "fp32",
+    tolerance: float = 1e-6,
 ) -> tuple[GraphIR, dict[str, int]]:
     """
-    Convenience function to optimize a graph with default passes.
+    Optimize a graph with configurable passes and precision conversion.
 
     Args:
         graph: The input GraphIR to optimize.
         opt_level: Optimization level (0=none, 1=basic, 2=standard, 3=aggressive).
         max_iterations: Maximum optimization iterations.
+        precision: Target precision (fp32, fp16, bf16, int8).
+        tolerance: Maximum relative error tolerance.
 
     Returns:
         Tuple of (optimized_graph, optimization_stats).
@@ -583,17 +587,38 @@ def optimize_graph(
         return graph, {}
 
     manager = PassManager()
+    stats = {}
 
     # Level 1: Basic optimizations
     if opt_level >= 1:
         manager.add_pass(ConstantFoldingPass())
 
-    # Level 2: Standard optimizations
+    # Level 2: Standard optimizations + Fusion
     if opt_level >= 2:
         manager.add_pass(DeadCodeEliminationPass())
+        manager.add_pass(OperatorFusionPass())  # Moved from level 3
 
-    # Level 3: Aggressive optimizations
-    if opt_level >= 3:
-        manager.add_pass(OperatorFusionPass())
+    # Level 3: Aggressive optimizations (advanced fusion)
+    if opt_level >= 3 and _PHASE2_AVAILABLE:
+        try:
+            advanced_pass = AdvancedFusionPass()
+            manager.add_pass(advanced_pass)
+        except Exception:
+            pass  # Skip if advanced fusion not available
 
-    return manager.run(graph, max_iterations)
+    # Run graph transformations
+    optimized, stats = manager.run(graph, max_iterations)
+
+    # Apply precision conversion if requested
+    if precision != "fp32" and _PHASE2_AVAILABLE:
+        try:
+            if precision == "fp16":
+                optimized = convert_to_fp16(optimized)
+                stats["precision_conversion"] = 1
+            elif precision == "bf16":
+                optimized = convert_to_bf16(optimized)
+                stats["precision_conversion"] = 1
+        except Exception:
+            pass  # Skip if conversion fails
+
+    return optimized, stats

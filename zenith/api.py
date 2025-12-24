@@ -222,6 +222,8 @@ def _optimize_graph(
             graph_ir,
             opt_level=opt_level,
             max_iterations=10,
+            precision=precision,
+            tolerance=tolerance,
         )
 
         # Log optimization statistics
