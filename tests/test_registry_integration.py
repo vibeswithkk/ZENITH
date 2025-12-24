@@ -10,12 +10,15 @@ def test_registry_integration():
     print("  Testing Native Kernel Registry Integration")
     print("=" * 60)
 
-    # Build CUDA extension first
-    print("\n1. Building CUDA extension...")
-    from zenith.build_cuda import build_cuda_extension
+    # Check if zenith_cuda was already built (by build_cuda.py)
+    print("\n1. Checking for zenith_cuda module...")
+    try:
+        import zenith_cuda
 
-    if not build_cuda_extension():
-        print("  SKIP: CUDA build failed, skipping integration test")
+        print(f"  zenith_cuda loaded: {len(dir(zenith_cuda))} functions")
+    except ImportError as e:
+        print(f"  zenith_cuda not available: {e}")
+        print("  SKIP: Run 'python ZENITH/zenith/build_cuda.py' first")
         return False
 
     # Now test registry
