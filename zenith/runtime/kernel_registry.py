@@ -168,9 +168,10 @@ class KernelRegistry:
         Initialize registry with all available kernels.
 
         Priority order:
-        1. Native CUDA kernels (_zenith_core.kernels) - highest performance
-        2. PyTorch GPU kernels (pytorch_kernels) - GPU acceleration via PyTorch
-        3. CPU fallback kernels (numpy-based) - baseline
+        1. JIT-compiled native CUDA kernels (zenith_cuda) - highest performance
+        2. Static native CUDA kernels (_zenith_core.kernels) - if available
+        3. PyTorch GPU kernels (pytorch_kernels) - GPU acceleration via PyTorch
+        4. CPU fallback kernels (numpy-based) - baseline
 
         Returns:
             True if GPU kernels (native or PyTorch) are available, False otherwise
@@ -178,26 +179,106 @@ class KernelRegistry:
         if self._initialized:
             return True
 
-        # Try native CUDA kernels first
+        has_gpu = False
+
+        # Try JIT-compiled native CUDA kernels first (priority=25)
+        try:
+            self._register_jit_cuda_kernels()
+            has_gpu = True
+        except (ImportError, ModuleNotFoundError, OSError):
+            pass  # zenith_cuda not built yet
+
+        # Try static native CUDA kernels
         try:
             self._register_cuda_kernels()
-            self._initialized = True
-            return True
+            has_gpu = True
         except (ImportError, AttributeError):
             pass
 
         # Try PyTorch GPU kernels
         try:
             self._register_pytorch_gpu_kernels()
-            self._initialized = True
-            return True
+            has_gpu = True
         except ImportError:
             pass
 
-        # Fall back to CPU kernels
+        # Always register CPU kernels as fallback
         self._register_cpu_kernels()
         self._initialized = True
-        return False
+        return has_gpu
+
+    def _register_jit_cuda_kernels(self) -> None:
+        """
+        Register JIT-compiled native CUDA kernels from zenith_cuda.
+
+        These kernels are built via build_cuda.py and provide the highest
+        performance through direct CUDA kernel calls (no PyTorch overhead).
+
+        Priority 25: Highest priority, used when available.
+        """
+        # Try to import the JIT-compiled module
+        import zenith_cuda
+
+        # Register ReLU kernel
+        self.register(
+            KernelSpec(
+                name="jit_relu_cuda",
+                op_types=["Relu", "ReLU", "relu"],
+                precision=Precision.FP32,
+                kernel_fn=zenith_cuda.relu,
+                priority=25,
+                requires_gpu=True,
+            )
+        )
+
+        # Register GELU kernel
+        self.register(
+            KernelSpec(
+                name="jit_gelu_cuda",
+                op_types=["Gelu", "GELU", "gelu"],
+                precision=Precision.FP32,
+                kernel_fn=zenith_cuda.gelu,
+                priority=25,
+                requires_gpu=True,
+            )
+        )
+
+        # Register LayerNorm kernel
+        self.register(
+            KernelSpec(
+                name="jit_layernorm_cuda",
+                op_types=["LayerNorm", "LayerNormalization", "layer_norm"],
+                precision=Precision.FP32,
+                kernel_fn=zenith_cuda.layernorm,
+                priority=25,
+                requires_gpu=True,
+            )
+        )
+
+        # Register MatMul kernel
+        self.register(
+            KernelSpec(
+                name="jit_matmul_cuda",
+                op_types=["MatMul", "Gemm", "matmul", "Linear"],
+                precision=Precision.FP32,
+                kernel_fn=zenith_cuda.matmul,
+                priority=25,
+                requires_gpu=True,
+            )
+        )
+
+        # Register Flash Attention if available
+        if hasattr(zenith_cuda, "flash_attention"):
+            self.register(
+                KernelSpec(
+                    name="jit_flash_attention_cuda",
+                    op_types=["Attention", "MultiHeadAttention", "flash_attention"],
+                    precision=Precision.FP32,
+                    kernel_fn=zenith_cuda.flash_attention,
+                    priority=25,
+                    requires_gpu=True,
+                )
+            )
 
     def _register_cuda_kernels(self) -> None:
         """Register all CUDA kernels from _zenith_core."""
