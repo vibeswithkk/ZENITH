@@ -90,8 +90,8 @@ def compile(
         tolerance=tolerance,
     )
 
-    # Step 3: Compile for target (pass original model for execution)
-    compiled = _compile_for_target(optimized_ir, target, original_model)
+    # Step 3: Compile for target (pass original model and precision for execution)
+    compiled = _compile_for_target(optimized_ir, target, original_model, precision)
 
     return compiled
 
@@ -248,7 +248,9 @@ def _optimize_graph(
         return graph_ir
 
 
-def _compile_for_target(graph_ir: GraphIR, target: str, original_model: Any) -> Any:
+def _compile_for_target(
+    graph_ir: GraphIR, target: str, original_model: Any, precision: str = "fp32"
+) -> Any:
     """
     Compile GraphIR for the specified target using Zenith Runtime.
 
@@ -259,6 +261,7 @@ def _compile_for_target(graph_ir: GraphIR, target: str, original_model: Any) -> 
         graph_ir: The optimized graph IR.
         target: Target device specification.
         original_model: Original model for fallback if needed.
+        precision: Target precision (fp32, fp16, bf16, int8).
 
     Returns:
         CompiledModel that uses Zenith kernels for execution.
@@ -285,7 +288,7 @@ def _compile_for_target(graph_ir: GraphIR, target: str, original_model: Any) -> 
 
         engine = ZenithEngine(backend=backend)
         config = CompileConfig(
-            precision="fp32",  # Will be overridden if needed
+            precision=precision,
             mode="default",
             verbose=2,
         )
