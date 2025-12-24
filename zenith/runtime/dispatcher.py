@@ -140,7 +140,16 @@ class KernelDispatcher:
         if kernel is None:
             # Handle TorchExported: fallback to original PyTorch model execution
             if op_type in ("TorchExported", "PyTorchModel", "ExportedModel"):
-                return self._handle_torch_exported(node, inputs, context)
+                output = self._handle_torch_exported(node, inputs, context)
+                # Store output in context (same as normal kernel path)
+                output_names = node.outputs if hasattr(node, "outputs") else []
+                if output_names:
+                    # Get the first output name (handle TensorDescriptor)
+                    out_name = output_names[0]
+                    if hasattr(out_name, "name"):
+                        out_name = out_name.name
+                    context.set_tensor(out_name, output)
+                return output
 
             raise UnsupportedOperationError(
                 f"No kernel found for operation '{op_type}' with precision {self.precision.value}. "
@@ -158,7 +167,11 @@ class KernelDispatcher:
                     if i < len(output):
                         context.set_tensor(name, output[i])
             else:
-                context.set_tensor(output_names[0], output)
+                # Handle TensorDescriptor objects
+                out_name = output_names[0]
+                if hasattr(out_name, "name"):
+                    out_name = out_name.name
+                context.set_tensor(out_name, output)
 
         # Update statistics
         self._dispatch_count += 1
