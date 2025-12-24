@@ -93,13 +93,19 @@ class GraphExecutor:
         self._last_stats: Optional[ExecutionStats] = None
         self._execution_count = 0
 
-    def run(self, inputs: dict[str, Any], return_numpy: bool = True) -> dict[str, Any]:
+    def run(
+        self,
+        inputs: dict[str, Any],
+        return_numpy: bool = True,
+        original_model: Any = None,
+    ) -> dict[str, Any]:
         """
         Execute the model with given inputs.
 
         Args:
             inputs: Dictionary of input name -> tensor
             return_numpy: Whether to convert outputs to numpy arrays
+            original_model: Original framework model for fallback execution
 
         Returns:
             Dictionary of output name -> tensor
@@ -113,6 +119,10 @@ class GraphExecutor:
             output_names=self.plan.output_names,
             device=self.device,
         )
+
+        # Store original model for TorchExported fallback
+        if original_model is not None:
+            context.set_metadata("original_model", original_model)
 
         # Set inputs
         for name, tensor in inputs.items():

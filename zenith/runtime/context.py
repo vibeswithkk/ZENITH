@@ -80,6 +80,7 @@ class ExecutionContext:
 
         # Execution metadata
         self._execution_count = 0
+        self._metadata: dict[str, Any] = {}
 
     def set_input(self, name: str, data: Any) -> None:
         """
@@ -203,6 +204,14 @@ class ExecutionContext:
         to_delete = [name for name in self._tensors if name not in self.input_names]
         for name in to_delete:
             self.delete_tensor(name)
+
+    def set_metadata(self, key: str, value: Any) -> None:
+        """Set execution metadata (e.g., original model)."""
+        self._metadata[key] = value
+
+    def get_metadata(self, key: str, default: Any = None) -> Any:
+        """Get execution metadata."""
+        return self._metadata.get(key, default)
 
     def _normalize_tensor(self, data: Any) -> tuple[Any, bool]:
         """

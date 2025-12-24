@@ -138,6 +138,10 @@ class KernelDispatcher:
         kernel = self.registry.get_kernel(op_type, self.precision, input_shapes)
 
         if kernel is None:
+            # Handle TorchExported: fallback to original PyTorch model execution
+            if op_type in ("TorchExported", "PyTorchModel", "ExportedModel"):
+                return self._handle_torch_exported(node, inputs, context)
+
             raise UnsupportedOperationError(
                 f"No kernel found for operation '{op_type}' with precision {self.precision.value}. "
                 f"Supported operations: {self.registry.list_supported_ops()}"
@@ -310,6 +314,61 @@ class KernelDispatcher:
         """Reset dispatch statistics."""
         self._dispatch_count = 0
         self._kernel_usage.clear()
+
+    def _handle_torch_exported(self, node, inputs, context):
+        """
+        Handle TorchExported nodes by running the original PyTorch model.
+
+        This is a fallback for when the GraphIR contains a single node
+        representing the entire PyTorch model rather than decomposed ops.
+        """
+        # Get the original model from node attributes
+        original_model = None
+        if hasattr(node, "attributes"):
+            original_model = node.attributes.get("original_model")
+
+        if original_model is None:
+            # Try to get from context
+            original_model = context.get_metadata("original_model")
+
+        if original_model is None:
+            raise RuntimeError(
+                "TorchExported node requires original_model but none found. "
+                "Ensure model was compiled with zenith.compile()."
+            )
+
+        # Run the original model
+        try:
+            import torch
+
+            # Convert inputs to torch tensors
+            torch_inputs = []
+            for inp in inputs:
+                if hasattr(inp, "numpy"):
+                    t = inp
+                elif hasattr(inp, "cpu"):
+                    t = inp
+                else:
+                    t = torch.from_numpy(inp)
+                    if torch.cuda.is_available():
+                        t = t.cuda()
+                torch_inputs.append(t)
+
+            # Run model
+            with torch.no_grad():
+                if len(torch_inputs) == 1:
+                    output = original_model(torch_inputs[0])
+                else:
+                    output = original_model(*torch_inputs)
+
+            # Convert output back
+            if hasattr(output, "cpu"):
+                output = output.cpu().numpy()
+
+            return output
+
+        except Exception as e:
+            raise RuntimeError(f"TorchExported execution failed: {e}") from e
 
 
 class UnsupportedOperationError(Exception):

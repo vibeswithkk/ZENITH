@@ -163,7 +163,9 @@ class CompiledModel:
         """
         start_time = time.perf_counter()
 
-        outputs = self.executor.run(inputs, return_numpy=True)
+        outputs = self.executor.run(
+            inputs, return_numpy=True, original_model=self.original_model
+        )
 
         self._execution_count += 1
         self._total_inference_time += (time.perf_counter() - start_time) * 1000
