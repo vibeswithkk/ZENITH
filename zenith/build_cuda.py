@@ -99,6 +99,7 @@ def build_cuda_extension():
                 "-O3",
                 "-DZENITH_HAS_CUDA",
                 "--use_fast_math",
+                "--extended-lambda",  # Required for device lambdas
                 "-gencode=arch=compute_70,code=sm_70",  # Volta
                 "-gencode=arch=compute_75,code=sm_75",  # Turing (T4)
                 "-gencode=arch=compute_80,code=sm_80",  # Ampere
