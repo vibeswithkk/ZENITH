@@ -114,7 +114,17 @@ class KernelDispatcher:
         )
 
         # Get input tensors from context
-        input_names = node.inputs if hasattr(node, "inputs") else []
+        raw_inputs = node.inputs if hasattr(node, "inputs") else []
+        # Handle TensorDescriptor objects - extract name if needed
+        input_names = []
+        for inp in raw_inputs:
+            if isinstance(inp, str):
+                input_names.append(inp)
+            elif hasattr(inp, "name"):
+                input_names.append(inp.name)
+            else:
+                input_names.append(str(inp))
+
         inputs = [
             context.get_tensor(name) for name in input_names if context.has_tensor(name)
         ]
