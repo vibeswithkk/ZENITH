@@ -6,23 +6,37 @@
 Build script for Zenith Native CUDA Extension.
 
 Usage (in Colab):
-    !python zenith/build_cuda.py
+    !pip install torch --quiet  # Ensure torch is installed
+    !python ZENITH/zenith/build_cuda.py
 
 This will compile the native CUDA kernels and install the extension.
 """
 
 import os
 import sys
+import subprocess
+
+
+def ensure_torch():
+    """Ensure PyTorch is available."""
+    try:
+        import torch
+
+        return torch
+    except ImportError:
+        print("PyTorch not found. Installing...")
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "torch", "--quiet"]
+        )
+        import torch
+
+        return torch
 
 
 def build_cuda_extension():
     """Build the CUDA extension using torch.utils.cpp_extension."""
-    try:
-        import torch
-        from torch.utils.cpp_extension import load
-    except ImportError:
-        print("ERROR: PyTorch required. Install with: pip install torch")
-        return False
+    torch = ensure_torch()
+    from torch.utils.cpp_extension import load
 
     if not torch.cuda.is_available():
         print("ERROR: CUDA not available")
