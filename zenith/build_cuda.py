@@ -50,6 +50,10 @@ def ensure_torch():
 def build_cuda_extension():
     """Build the CUDA extension using torch.utils.cpp_extension."""
     torch = ensure_torch()
+
+    # Install ninja build system if needed
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "ninja", "-q"])
+
     from torch.utils.cpp_extension import load
 
     if not torch.cuda.is_available():
