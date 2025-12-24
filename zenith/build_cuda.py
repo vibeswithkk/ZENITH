@@ -18,19 +18,27 @@ import subprocess
 
 
 def ensure_torch():
-    """Ensure PyTorch is available."""
-    try:
-        import torch
+    """Ensure PyTorch is available (bypass zenith.torch conflict)."""
+    import importlib.util
+    import importlib
 
-        return torch
-    except ImportError:
-        print("PyTorch not found. Installing...")
+    # Check if real torch is available (not zenith.torch)
+    spec = importlib.util.find_spec("torch")
+
+    # If torch spec points to our zenith/torch, it's not the real one
+    if spec is None or (spec.origin and "zenith" in spec.origin):
+        print("PyTorch not found or shadowed. Installing...")
         subprocess.check_call(
             [sys.executable, "-m", "pip", "install", "torch", "--quiet"]
         )
-        import torch
+        # Clear cached module
+        if "torch" in sys.modules:
+            del sys.modules["torch"]
 
-        return torch
+    # Force reimport
+    import torch as _torch
+
+    return _torch
 
 
 def build_cuda_extension():
