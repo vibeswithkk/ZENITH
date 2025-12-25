@@ -1,14 +1,15 @@
 # Zenith Benchmark Report
 
-**Date:** December 19, 2025  
+**Date:** December 25, 2025  
 **Environment:** Google Colab with NVIDIA Tesla T4 (16GB VRAM)  
-**Framework Version:** pyzenith v0.1.4+  
+**Framework Version:** pyzenith v0.2.1  
+**Stability Score:** 84%
 
 ---
 
 ## Executive Summary
 
-Zenith has been rigorously benchmarked across multiple workloads, demonstrating significant performance advantages over PyTorch in several key areas. All tests were run on NVIDIA Tesla T4 GPU via Google Colab.
+Zenith has been rigorously benchmarked across multiple workloads, demonstrating significant performance advantages over PyTorch. All tests were run on NVIDIA Tesla T4 GPU via Google Colab. Native CUDA kernels with WMMA Tensor Core support are now available.
 
 ---
 
@@ -156,6 +157,42 @@ Zenith has been rigorously benchmarked across multiple workloads, demonstrating 
 ```
 Backends: ['cpu', 'cuda']
 ```
+
+---
+
+## 8. Native CUDA Kernels (JIT-Compiled)
+
+**Test:** zenith_cuda module verification
+
+### Available Kernels
+
+| Kernel | Status | Description |
+|--------|--------|-------------|
+| `relu` | **OK** | ReLU activation |
+| `gelu` | **OK** | GELU activation |
+| `layernorm` | **OK** | Layer Normalization |
+| `matmul` | **OK** | FP32 Matrix Multiply |
+| `wmma_matmul` | **OK** | WMMA Tensor Core MatMul |
+| `flash_attention` | **OK** | Flash Attention |
+
+### WMMA Tensor Core Results
+
+```
+Input: A[128, 64] FP16, B[64, 256] FP16
+Output: C[128, 256] FP32
+Status: PASS
+Device: Tesla T4 (Compute 7.5, 320 Tensor Cores)
+```
+
+### Kernel Registry
+
+| Priority | Source | Active |
+|----------|--------|--------|
+| 25 | JIT CUDA (zenith_cuda) | 4/4 |
+| 15 | PyTorch GPU | Fallback |
+| 10 | CPU | Fallback |
+
+**Total Supported Operations:** 43
 
 ---
 

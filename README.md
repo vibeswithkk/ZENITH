@@ -3,13 +3,15 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python](https://img.shields.io/badge/Python-3.9+-green.svg)](https://www.python.org/)
 [![PyPI](https://img.shields.io/pypi/v/pyzenith.svg)](https://pypi.org/project/pyzenith/)
-[![CI](https://github.com/vibeswithkk/ZENITH/actions/workflows/ci.yml/badge.svg)](https://github.com/vibeswithkk/ZENITH/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/vibeswithkk/ZENITH/actions/workflows/codeql.yml/badge.svg)](https://github.com/vibeswithkk/ZENITH/actions/workflows/codeql.yml)
+[![Stability](https://img.shields.io/badge/Stability-84%25-brightgreen.svg)](#)
 [![CUDA](https://img.shields.io/badge/CUDA-12.x-76B900.svg)](https://developer.nvidia.com/cuda-toolkit)
+[![Tensor Cores](https://img.shields.io/badge/Tensor%20Cores-WMMA-orange.svg)](#native-cuda-kernels)
+[![CI](https://github.com/vibeswithkk/ZENITH/actions/workflows/ci.yml/badge.svg)](https://github.com/vibeswithkk/ZENITH/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/Tests-942+-success.svg)](#)
 
 **Cross-Platform ML Optimization Framework**
 
-Zenith is a model-agnostic and hardware-agnostic unification and optimization framework for Machine Learning. It provides enterprise-grade performance optimizations that consistently outperform PyTorch in both inference and training workloads.
+Zenith is a production-ready, model-agnostic and hardware-agnostic optimization framework for Machine Learning. It provides enterprise-grade performance optimizations with native CUDA kernels and Tensor Core acceleration.
 
 ## Project History
 
@@ -52,8 +54,30 @@ The project represents nearly a year of dedicated work in building a production-
 ### Hardware Support
 - CPU: AVX2/FMA SIMD optimizations
 - NVIDIA GPU: CUDA 12.x with cuDNN 8.x and cuBLAS
-- AMD GPU: ROCm support (planned)
-- Intel: OneAPI support (planned)
+- AMD GPU: ROCm support (experimental)
+- Intel: OneAPI support (experimental)
+
+### Native CUDA Kernels
+
+Zenith includes JIT-compiled native CUDA kernels for maximum performance:
+
+| Kernel | Description | Tensor Core |
+|--------|-------------|-------------|
+| `relu` | ReLU activation | - |
+| `gelu` | GELU activation (BERT) | - |
+| `layernorm` | Layer Normalization | - |
+| `matmul` | Matrix Multiplication (FP32) | - |
+| `wmma_matmul` | Matrix Multiplication (FP16) | **WMMA** |
+| `flash_attention` | Flash Attention v2 | - |
+
+```python
+# Build native kernels (requires CUDA)
+python zenith/build_cuda.py
+
+# Use in code
+import zenith_cuda
+C = zenith_cuda.wmma_matmul(A.half(), B.half())  # Tensor Core accelerated
+```
 
 ---
 
