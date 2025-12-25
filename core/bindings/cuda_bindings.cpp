@@ -21,6 +21,8 @@ void layernorm_f32(const float *input, float *output, const float *gamma,
 void matmul_f32(const float *A, const float *B, float *C, int M, int N, int K);
 void softmax_2d_f32(const float *input, float *output, int batch, int len);
 void add_f32(const float *A, const float *B, float *C, size_t size);
+void wmma_matmul_f16(const half *A, const half *B, float *C, int M, int N,
+                     int K);
 
 } // namespace cuda_kernels
 
@@ -103,6 +105,32 @@ torch::Tensor flash_attention_cuda(torch::Tensor Q, torch::Tensor K,
   return O;
 }
 
+// WMMA Tensor Core MatMul wrapper
+// Takes FP16 inputs, outputs FP32 for numerical stability
+torch::Tensor wmma_matmul_cuda(torch::Tensor A, torch::Tensor B) {
+  TORCH_CHECK(A.is_cuda() && B.is_cuda(), "Inputs must be CUDA tensors");
+  TORCH_CHECK(A.dim() == 2 && B.dim() == 2, "Inputs must be 2D");
+  TORCH_CHECK(A.scalar_type() == torch::kFloat16,
+              "A must be FP16 (use .half())");
+  TORCH_CHECK(B.scalar_type() == torch::kFloat16,
+              "B must be FP16 (use .half())");
+
+  int M = A.size(0);
+  int K = A.size(1);
+  int N = B.size(1);
+
+  TORCH_CHECK(B.size(0) == K, "Matrix dimensions must match");
+
+  // Output is FP32 for numerical stability
+  auto C = torch::empty({M, N}, A.options().dtype(torch::kFloat32));
+
+  zenith::cuda_kernels::wmma_matmul_f16(
+      reinterpret_cast<const half *>(A.data_ptr<at::Half>()),
+      reinterpret_cast<const half *>(B.data_ptr<at::Half>()),
+      C.data_ptr<float>(), M, N, K);
+  return C;
+}
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.doc() = "Zenith Native CUDA Kernels";
 
@@ -112,6 +140,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         py::arg("gamma"), py::arg("beta"), py::arg("eps") = 1e-5);
   m.def("matmul", &matmul_cuda, "Matrix multiplication (CUDA)");
   m.def("flash_attention", &flash_attention_cuda, "Flash Attention (CUDA)");
+  m.def("wmma_matmul", &wmma_matmul_cuda,
+        "WMMA Tensor Core MatMul (FP16->FP32)");
 }
 
 #else
