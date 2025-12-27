@@ -52,3 +52,8 @@ venv/
 .vscode/
 .website/
 ZENITH
+
+
+# Private folder - do not commit
+Terusan/
+.hypothesis/

@@ -66,6 +66,7 @@ class TestEndToEndWorkflow:
     def test_pytorch_adapter_workflow(self):
         """Test PyTorch adapter workflow."""
         pytest.importorskip("torch")
+        pytest.importorskip("onnxscript")  # Required for PyTorch 2.x ONNX export
         import torch
         from zenith.torch import PyTorchAdapter
 
@@ -75,9 +76,9 @@ class TestEndToEndWorkflow:
         # 2. Create adapter
         adapter = PyTorchAdapter()
 
-        # 3. Convert to GraphIR
+        # 3. Convert to GraphIR (using correct method: from_model)
         sample_input = torch.randn(1, 64)
-        graph = adapter.from_pytorch(model, sample_input)
+        graph = adapter.from_model(model, sample_input)
 
         # 4. Verify conversion
         assert graph is not None
@@ -86,6 +87,7 @@ class TestEndToEndWorkflow:
     def test_onnx_import_workflow(self):
         """Test ONNX import workflow."""
         pytest.importorskip("onnx")
+        pytest.importorskip("onnxscript")
         import tempfile
         import torch
         import onnx
@@ -108,11 +110,13 @@ class TestEndToEndWorkflow:
     def test_compile_api_workflow(self):
         """Test zenith.compile API."""
         pytest.importorskip("torch")
+        pytest.importorskip("onnxscript")  # Required for PyTorch 2.x ONNX export
         import torch
         import zenith
 
         model = torch.nn.Linear(64, 32)
-        compiled = zenith.compile(model, target="cpu")
+        sample_input = torch.randn(1, 64)
+        compiled = zenith.compile(model, target="cpu", sample_input=sample_input)
 
         assert compiled is not None
 
@@ -134,14 +138,18 @@ class TestPyTorchIntegration:
 
     def test_pytorch_model_compile(self, torch_model):
         """Test compiling PyTorch model."""
+        pytest.importorskip("onnxscript")  # Required for PyTorch 2.x ONNX export
+        import torch
         import zenith
 
-        compiled = zenith.compile(torch_model, target="cpu")
+        sample_input = torch.randn(1, 128)
+        compiled = zenith.compile(torch_model, target="cpu", sample_input=sample_input)
         assert compiled is not None
 
     def test_pytorch_sequential_model(self):
         """Test sequential model compilation."""
         pytest.importorskip("torch")
+        pytest.importorskip("onnxscript")  # Required for PyTorch 2.x ONNX export
         import torch
         import zenith
 
@@ -152,7 +160,8 @@ class TestPyTorchIntegration:
             torch.nn.Linear(128, 64),
         )
 
-        compiled = zenith.compile(model, target="cpu")
+        sample_input = torch.randn(1, 256)
+        compiled = zenith.compile(model, target="cpu", sample_input=sample_input)
         assert compiled is not None
 
 

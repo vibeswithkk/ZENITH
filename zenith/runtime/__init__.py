@@ -29,8 +29,21 @@ from .dispatcher import KernelDispatcher
 from .memory_manager import MemoryManager
 from .executor import GraphExecutor
 from .engine import ZenithEngine, CompileConfig, CompiledModel
+from .cuda_graphs import (
+    CudaGraphManager,
+    GraphCaptureContext,
+    CachedGraphModel,
+    GraphCaptureMode,
+    GraphStatus,
+    GraphStatistics,
+    capture,
+    replay,
+    graph_cached,
+    get_global_manager,
+)
 
 __all__ = [
+    # Core Runtime
     "ZenithEngine",
     "CompileConfig",
     "CompiledModel",
@@ -40,4 +53,15 @@ __all__ = [
     "KernelSpec",
     "ExecutionContext",
     "MemoryManager",
+    # CUDA Graphs
+    "CudaGraphManager",
+    "GraphCaptureContext",
+    "CachedGraphModel",
+    "GraphCaptureMode",
+    "GraphStatus",
+    "GraphStatistics",
+    "capture",
+    "replay",
+    "graph_cached",
+    "get_global_manager",
 ]

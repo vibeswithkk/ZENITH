@@ -754,7 +754,9 @@ class KernelRegistry:
     def _register_cpu_kernels(self) -> None:
         """Register CPU fallback kernels (numpy-based)."""
         import numpy as np
-        from scipy import special
+
+        # Note: scipy is not required for CPU kernels
+        # All operations use numpy implementations only
 
         # =====================================================================
         # LINEAR / MATMUL

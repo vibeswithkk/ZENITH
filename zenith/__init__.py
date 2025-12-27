@@ -59,6 +59,9 @@ from . import tensorflow
 from . import jax
 from . import torch
 
+# Import inference module (E2E inference pipeline)
+from . import inference
+
 # Main API functions
 from .api import compile, optimize
 
