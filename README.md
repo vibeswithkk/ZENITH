@@ -11,8 +11,7 @@
 
 **Cross-Platform ML Optimization Framework**
 
-Zenith is a production-ready, model-agnostic and hardware-agnostic optimization framework for Machine Learning. It provides enterprise-grade performance optimizations with native CUDA kernels and Tensor Core acceleration.
-
+Zenith is a hobby project that aims to be a helpful companion framework for PyTorch, JAX, and TensorFlow. It provides optimization utilities like native CUDA kernels, operator fusion, and quantization to help make your inference stack a bit faster.
 ## Project History
 
 Zenith was conceived and architecturally designed on **December 11, 2024**, with the creation of its comprehensive blueprint document (CetakBiru.md) that outlines a 36-month development roadmap across 6 implementation phases. Active development began on **January 12, 2025**, and after 11 months of internal development, research, and rigorous testing, Zenith was publicly released on GitHub on **December 16, 2025**.
