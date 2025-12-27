@@ -11,27 +11,29 @@
 
 **Cross-Platform ML Optimization Framework**
 
-Zenith is a production-ready, model-agnostic and hardware-agnostic optimization framework for Machine Learning. It provides enterprise-grade performance optimizations with native CUDA kernels and Tensor Core acceleration.
+Zenith is a hobby project that aims to be a helpful companion framework for PyTorch, JAX, and TensorFlow. It provides optimization utilities like native CUDA kernels, operator fusion, and quantization to help make your inference stack a bit faster.
 
 ## Project History
 
 Zenith was conceived and architecturally designed on **December 11, 2024**, with the creation of its comprehensive blueprint document (CetakBiru.md) that outlines a 36-month development roadmap across 6 implementation phases. Active development began on **January 12, 2025**, and after 11 months of internal development, research, and rigorous testing, Zenith was publicly released on GitHub on **December 16, 2025**.
 
-The project represents nearly a year of dedicated work in building a production-ready ML optimization framework from the ground up, implementing CUDA backends with cuDNN/cuBLAS integration, graph optimization passes, mixed precision support, and comprehensive testing infrastructure.
+This project represents nearly a year of hobby development, learning CUDA programming, and experimenting with ML optimization techniques. It's still a work in progress!
 
 ---
 
-## Performance Highlights
+## Early Benchmark Results
 
-| Benchmark | Workload | Result |
-|-----------|----------|--------|
-| GPU Memory Pool | MatMul 1024x1024 | **50x faster** than PyTorch |
-| BERT Inference | 12-layer encoder | **1.09x faster** than PyTorch |
-| Training Loop | 6-layer Transformer | **1.02x faster** than PyTorch |
-| Memory Efficiency | Zero-copy allocation | **93.5% cache hit rate** |
-| INT8 Quantization | Model compression | **4x memory reduction** |
+These are some early experiments on NVIDIA Tesla T4 (Google Colab). Results may vary:
 
-*Benchmarked on NVIDIA Tesla T4 (Google Colab). See [BENCHMARK_REPORT.md](./BENCHMARK_REPORT.md) for full results.*
+| Benchmark | Workload | Observation |
+|-----------|----------|-------------|
+| GPU Memory Pool | MatMul 1024x1024 | ~50x faster (zero-copy vs copy) |
+| BERT Inference | 12-layer encoder | ~1.09x faster |
+| Training Loop | 6-layer Transformer | ~1.02x faster |
+| Memory Efficiency | Zero-copy allocation | 93.5% cache hit rate |
+| INT8 Quantization | Model compression | 4x memory reduction |
+
+*These benchmarks are preliminary. See [BENCHMARK_REPORT.md](./BENCHMARK_REPORT.md) for details.*
 
 ---
 
@@ -54,12 +56,15 @@ The project represents nearly a year of dedicated work in building a production-
 ### Hardware Support
 - CPU: AVX2/FMA SIMD optimizations
 - NVIDIA GPU: CUDA 12.x with cuDNN 8.x and cuBLAS
-- AMD GPU: ROCm support (experimental)
-- Intel: OneAPI support (experimental)
+- AMD GPU: ROCm support (experimental - untesting)
+- Intel: OneAPI support (experimental - untesting)
+
+> **Note regarding AMD & Intel GPUs:**  
+> Support for ROCm (AMD) and OneAPI (Intel) is currently in an **experimental** state. While the backend code exists, it has not been verified on physical hardware. We recommend using NVIDIA GPUs for production workloads. Community contributions for hardware verification are welcome!
 
 ### Native CUDA Kernels
 
-Zenith includes JIT-compiled native CUDA kernels for maximum performance:
+Zenith includes some hand-written CUDA kernels (still experimental):
 
 | Kernel | Description | Tensor Core |
 |--------|-------------|-------------|
