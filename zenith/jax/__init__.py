@@ -82,6 +82,18 @@ from .onnx_export import (
     get_onnx_model_info,
 )
 
+# Import primitives module (Phase 3)
+from .primitives import (
+    PrimitiveConfig,
+    ZenithPrimitiveRegistry,
+    fused_attention,
+    fused_layernorm,
+    fused_gelu,
+    fused_softmax,
+    get_primitive_registry,
+    list_primitives,
+)
+
 # Default adapter instance
 _default_adapter: JAXAdapter = None
 
@@ -370,4 +382,13 @@ __all__ = [
     "export_to_onnx",
     "validate_onnx_model",
     "get_onnx_model_info",
+    # Primitives (Phase 3)
+    "PrimitiveConfig",
+    "ZenithPrimitiveRegistry",
+    "fused_attention",
+    "fused_layernorm",
+    "fused_gelu",
+    "fused_softmax",
+    "get_primitive_registry",
+    "list_primitives",
 ]

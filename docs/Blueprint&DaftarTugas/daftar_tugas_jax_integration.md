@@ -110,13 +110,13 @@ Daftar tugas lengkap untuk mengimplementasikan Full JAX Integration berdasarkan 
 
 | ID | Task | File | Priority | Status | Est. Hours |
 |----|------|------|----------|--------|------------|
-| JAX-037 | Create `zenith/jax/primitives.py` file | `zenith/jax/primitives.py` | P1 | TODO | 2 |
-| JAX-038 | Implement primitive registration framework | `zenith/jax/primitives.py` | P1 | TODO | 8 |
-| JAX-039 | Implement fused attention primitive with abstract_eval | `zenith/jax/primitives.py` | P1 | TODO | 12 |
-| JAX-040 | Implement JVP (forward-mode diff) for attention | `zenith/jax/primitives.py` | P1 | TODO | 8 |
-| JAX-041 | Implement VJP (reverse-mode diff) for attention | `zenith/jax/primitives.py` | P1 | TODO | 8 |
-| JAX-042 | Add fused LayerNorm primitive | `zenith/jax/primitives.py` | P2 | TODO | 8 |
-| JAX-043 | Write tests for JAX primitives | `tests/python/test_jax_primitives.py` | P1 | TODO | 8 |
+| JAX-037 | Create `zenith/jax/primitives.py` file | `zenith/jax/primitives.py` | P1 | DONE | 2 |
+| JAX-038 | Implement primitive registration framework | `zenith/jax/primitives.py` | P1 | DONE | 8 |
+| JAX-039 | Implement fused attention primitive with abstract_eval | `zenith/jax/primitives.py` | P1 | DONE | 12 |
+| JAX-040 | Implement JVP (forward-mode diff) for attention | `zenith/jax/primitives.py` | P1 | DONE | 8 |
+| JAX-041 | Implement VJP (reverse-mode diff) for attention | `zenith/jax/primitives.py` | P1 | DONE | 8 |
+| JAX-042 | Add fused LayerNorm primitive | `zenith/jax/primitives.py` | P2 | DONE | 8 |
+| JAX-043 | Write tests for JAX primitives | `tests/python/test_jax_primitives.py` | P1 | DONE | 8 |
 
 **Deliverable:** Custom JAX primitives with full JVP/VJP support
 
@@ -126,15 +126,16 @@ Daftar tugas lengkap untuk mengimplementasikan Full JAX Integration berdasarkan 
 
 | ID | Task | File | Priority | Status | Est. Hours |
 |----|------|------|----------|--------|------------|
-| JAX-044 | Create `zenith/runtime/xla_kernels.py` file | `zenith/runtime/xla_kernels.py` | P2 | TODO | 2 |
-| JAX-045 | Implement XLA FFI Python bindings | `zenith/runtime/xla_kernels.py` | P2 | TODO | 8 |
-| JAX-046 | Create C++ XLA kernel registry (if needed) | `zenith/_native/xla_kernels.cpp` | P2 | TODO | 16 |
-| JAX-047 | Implement fused attention XLA kernel | `zenith/runtime/xla_kernels.py` | P2 | TODO | 12 |
+| JAX-044 | Create `zenith/runtime/xla_kernels.py` file | `zenith/runtime/xla_kernels.py` | P2 | DONE | 2 |
+| JAX-045 | Implement XLA FFI Python bindings | `zenith/runtime/xla_kernels.py` | P2 | DONE | 8 |
+| JAX-046 | Create C++ XLA kernel registry (if needed) | `zenith/_native/xla_kernels.cpp` | P2 | SKIPPED | 16 |
+| JAX-047 | Implement fused attention XLA kernel | `zenith/runtime/xla_kernels.py` | P2 | DONE | 12 |
 | JAX-048 | Write performance tests for XLA kernels | `tests/perf/test_xla_kernels.py` | P2 | TODO | 6 |
 
 **Deliverable:** XLA-optimized kernels via CustomCall
 
 ---
+
 
 ## Phase 4: Validation and Polish (Week 7-8)
 
