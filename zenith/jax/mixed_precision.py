@@ -343,12 +343,12 @@ class DynamicLossScaler:
         jnp = _get_jnp()
 
         inv_scale = 1.0 / self._state.scale
-        unscaled = jax.tree_map(lambda g: g * inv_scale, grads)
+        unscaled = jax.tree_util.tree_map(lambda g: g * inv_scale, grads)
 
         def check_finite(g):
             return jnp.all(jnp.isfinite(g))
 
-        finite_checks = jax.tree_map(check_finite, unscaled)
+        finite_checks = jax.tree_util.tree_map(check_finite, unscaled)
         is_finite = jax.tree_util.tree_reduce(
             lambda a, b: jnp.logical_and(a, b),
             finite_checks,
@@ -503,7 +503,7 @@ class ZenithMixedPrecision:
                 return x.astype(compute_dtype)
             return x
 
-        return jax.tree_map(cast_array, pytree)
+        return jax.tree_util.tree_map(cast_array, pytree)
 
     def cast_to_param(self, pytree: PyTree) -> PyTree:
         """
@@ -528,7 +528,7 @@ class ZenithMixedPrecision:
                 return x.astype(param_dtype)
             return x
 
-        return jax.tree_map(cast_array, pytree)
+        return jax.tree_util.tree_map(cast_array, pytree)
 
     def scale_loss(self, loss: Any) -> Any:
         """
@@ -624,7 +624,7 @@ class ZenithMixedPrecision:
             if cast_outputs:
                 result_dtype = self._policy.output_jax_dtype
                 jax = _get_jax()
-                result = jax.tree_map(
+                result = jax.tree_util.tree_map(
                     lambda x: x.astype(result_dtype) if hasattr(x, "astype") else x,
                     result,
                 )
