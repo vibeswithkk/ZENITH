@@ -72,6 +72,16 @@ from .mixed_precision import (
     detect_best_precision,
 )
 
+# Import ONNX export module
+from .onnx_export import (
+    ONNXExportConfig,
+    ONNXExportResult,
+    JAXONNXExporter,
+    export_to_onnx,
+    validate_onnx_model,
+    get_onnx_model_info,
+)
+
 # Default adapter instance
 _default_adapter: JAXAdapter = None
 
@@ -353,4 +363,11 @@ __all__ = [
     "ZenithMixedPrecision",
     "create_policy",
     "detect_best_precision",
+    # ONNX Export
+    "ONNXExportConfig",
+    "ONNXExportResult",
+    "JAXONNXExporter",
+    "export_to_onnx",
+    "validate_onnx_model",
+    "get_onnx_model_info",
 ]
