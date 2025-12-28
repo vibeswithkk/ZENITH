@@ -76,14 +76,14 @@ Daftar tugas lengkap untuk mengimplementasikan Full JAX Integration berdasarkan 
 
 | ID | Task | File | Priority | Status | Est. Hours |
 |----|------|------|----------|--------|------------|
-| JAX-023 | Create `zenith/backends/xla_backend.py` file | `zenith/backends/xla_backend.py` | P1 | TODO | 2 |
-| JAX-024 | Implement `XLABackend` class extending BaseBackend | `zenith/backends/xla_backend.py` | P1 | TODO | 8 |
-| JAX-025 | Implement GraphIR → HLO conversion | `zenith/core/hlo_lowering.py` | P1 | TODO | 16 |
-| JAX-026 | Implement XLA compilation and caching | `zenith/backends/xla_backend.py` | P1 | TODO | 8 |
-| JAX-027 | Implement XLA execution with device placement | `zenith/backends/xla_backend.py` | P1 | TODO | 6 |
-| JAX-028 | Add TPU support detection and handling | `zenith/backends/xla_backend.py` | P2 | TODO | 4 |
+| JAX-023 | Create `zenith/backends/xla_backend.py` file | `zenith/backends/xla_backend.py` | P1 | DONE | 2 |
+| JAX-024 | Implement `XLABackend` class extending BaseBackend | `zenith/backends/xla_backend.py` | P1 | DONE | 8 |
+| JAX-025 | Implement GraphIR → HLO conversion | `zenith/core/hlo_lowering.py` | P1 | DONE | 16 |
+| JAX-026 | Implement XLA compilation and caching | `zenith/backends/xla_backend.py` | P1 | DONE | 8 |
+| JAX-027 | Implement XLA execution with device placement | `zenith/backends/xla_backend.py` | P1 | DONE | 6 |
+| JAX-028 | Add TPU support detection and handling | `zenith/backends/xla_backend.py` | P2 | DONE | 4 |
 | JAX-029 | Register XLA backend in backend registry | `zenith/backends/registry.py` | P1 | TODO | 2 |
-| JAX-030 | Write integration tests for XLA backend | `tests/e2e/test_xla_backend.py` | P1 | TODO | 8 |
+| JAX-030 | Write integration tests for XLA backend | `tests/e2e/test_xla_backend.py` | P1 | DONE | 8 |
 
 **Deliverable:** Direct XLA execution from GraphIR
 
@@ -93,12 +93,12 @@ Daftar tugas lengkap untuk mengimplementasikan Full JAX Integration berdasarkan 
 
 | ID | Task | File | Priority | Status | Est. Hours |
 |----|------|------|----------|--------|------------|
-| JAX-031 | Create `zenith/jax/onnx_export.py` file | `zenith/jax/onnx_export.py` | P1 | TODO | 2 |
-| JAX-032 | Implement `export_to_onnx()` main function | `zenith/jax/onnx_export.py` | P1 | TODO | 8 |
-| JAX-033 | Implement `validate_onnx_model()` validation | `zenith/jax/onnx_export.py` | P1 | TODO | 6 |
-| JAX-034 | Add StableHLO → ONNX conversion path | `zenith/jax/onnx_export.py` | P1 | TODO | 8 |
-| JAX-035 | Implement ONNX optimization passes | `zenith/jax/onnx_export.py` | P2 | TODO | 4 |
-| JAX-036 | Write tests for ONNX export | `tests/python/test_jax_onnx_export.py` | P1 | TODO | 6 |
+| JAX-031 | Create `zenith/jax/onnx_export.py` file | `zenith/jax/onnx_export.py` | P1 | DONE | 2 |
+| JAX-032 | Implement `export_to_onnx()` main function | `zenith/jax/onnx_export.py` | P1 | DONE | 8 |
+| JAX-033 | Implement `validate_onnx_model()` validation | `zenith/jax/onnx_export.py` | P1 | DONE | 6 |
+| JAX-034 | Add StableHLO → ONNX conversion path | `zenith/jax/onnx_export.py` | P1 | DONE | 8 |
+| JAX-035 | Implement ONNX optimization passes | `zenith/jax/onnx_export.py` | P2 | DONE | 4 |
+| JAX-036 | Write tests for ONNX export | `tests/python/test_jax_onnx_export.py` | P1 | DONE | 6 |
 
 **Deliverable:** Robust ONNX export with validation
 
