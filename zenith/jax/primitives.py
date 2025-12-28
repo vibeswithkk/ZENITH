@@ -41,6 +41,70 @@ def _get_jax():
         ) from e
 
 
+def _get_primitive_class():
+    """Get the Primitive class with version compatibility.
+
+    JAX v0.6.0+ moved Primitive from jax.core to jax.extend.core.
+    We try the new location first, then fall back to the old one.
+    """
+    try:
+        # Modern JAX (v0.6.0+)
+        from jax.extend.core import Primitive
+
+        return Primitive
+    except (ImportError, AttributeError):
+        try:
+            # Legacy JAX (< v0.6.0)
+            from jax.core import Primitive
+
+            return Primitive
+        except (ImportError, AttributeError):
+            raise ImportError(
+                "Cannot find jax Primitive class. "
+                "Please update JAX: pip install --upgrade jax jaxlib"
+            ) from None
+
+
+def _get_shaped_array_class():
+    """Get ShapedArray class with version compatibility."""
+    try:
+        # Modern JAX (v0.6.0+)
+        from jax.extend.core import ShapedArray
+
+        return ShapedArray
+    except (ImportError, AttributeError):
+        try:
+            # Legacy JAX
+            from jax.core import ShapedArray
+
+            return ShapedArray
+        except (ImportError, AttributeError):
+            raise ImportError(
+                "Cannot find jax ShapedArray class. "
+                "Please update JAX: pip install --upgrade jax jaxlib"
+            ) from None
+
+
+def _get_ad_module():
+    """Get the autodiff module with version compatibility."""
+    try:
+        # Modern JAX (v0.6.0+) - moved to _src
+        from jax._src.interpreters import ad
+
+        return ad
+    except (ImportError, AttributeError):
+        try:
+            # Legacy JAX
+            from jax.interpreters import ad
+
+            return ad
+        except (ImportError, AttributeError):
+            raise ImportError(
+                "Cannot find jax autodiff module. "
+                "Please update JAX: pip install --upgrade jax jaxlib"
+            ) from None
+
+
 def _get_jnp():
     """Lazy import of jax.numpy."""
     try:
@@ -138,14 +202,16 @@ def _register_all_primitives(registry: ZenithPrimitiveRegistry) -> None:
     - Transpose rules (for VJP)
     - MLIR lowering rules
     """
-    jax = _get_jax()
-    # Note: jnp is imported lazily within each implementation function
+    Primitive = _get_primitive_class()
+    ShapedArray = _get_shaped_array_class()
+    ad = _get_ad_module()
+    # Note: jax and jnp are imported lazily within each implementation function
 
     # ==========================================================================
     # 1. FUSED ATTENTION PRIMITIVE
     # ==========================================================================
 
-    zenith_fused_attention_p = jax.core.Primitive("zenith_fused_attention")
+    zenith_fused_attention_p = Primitive("zenith_fused_attention")
     zenith_fused_attention_p.multiple_results = False
 
     @zenith_fused_attention_p.def_abstract_eval
@@ -175,7 +241,7 @@ def _register_all_primitives(registry: ZenithPrimitiveRegistry) -> None:
 
         batch, heads, seq_q, head_dim = q_aval.shape
 
-        return jax.core.ShapedArray(
+        return ShapedArray(
             shape=(batch, heads, seq_q, head_dim),
             dtype=q_aval.dtype,
         )
@@ -343,7 +409,7 @@ def _register_all_primitives(registry: ZenithPrimitiveRegistry) -> None:
         return dq, dk, dv
 
     # Register differentiation rules
-    jax.interpreters.ad.primitive_jvps[zenith_fused_attention_p] = _fused_attention_jvp
+    ad.primitive_jvps[zenith_fused_attention_p] = _fused_attention_jvp
 
     registry.register("zenith_fused_attention", zenith_fused_attention_p)
 
@@ -351,7 +417,7 @@ def _register_all_primitives(registry: ZenithPrimitiveRegistry) -> None:
     # 2. FUSED LAYER NORMALIZATION PRIMITIVE
     # ==========================================================================
 
-    zenith_fused_layernorm_p = jax.core.Primitive("zenith_fused_layernorm")
+    zenith_fused_layernorm_p = Primitive("zenith_fused_layernorm")
     zenith_fused_layernorm_p.multiple_results = False
 
     @zenith_fused_layernorm_p.def_abstract_eval
@@ -371,7 +437,7 @@ def _register_all_primitives(registry: ZenithPrimitiveRegistry) -> None:
         Output shape:
             out: same as x
         """
-        return jax.core.ShapedArray(
+        return ShapedArray(
             shape=x_aval.shape,
             dtype=x_aval.dtype,
         )
@@ -439,7 +505,7 @@ def _register_all_primitives(registry: ZenithPrimitiveRegistry) -> None:
 
         return output, d_output
 
-    jax.interpreters.ad.primitive_jvps[zenith_fused_layernorm_p] = _fused_layernorm_jvp
+    ad.primitive_jvps[zenith_fused_layernorm_p] = _fused_layernorm_jvp
 
     registry.register("zenith_fused_layernorm", zenith_fused_layernorm_p)
 
@@ -447,13 +513,14 @@ def _register_all_primitives(registry: ZenithPrimitiveRegistry) -> None:
     # 3. FUSED GELU PRIMITIVE
     # ==========================================================================
 
-    zenith_fused_gelu_p = jax.core.Primitive("zenith_fused_gelu")
+    zenith_fused_gelu_p = Primitive("zenith_fused_gelu")
+
     zenith_fused_gelu_p.multiple_results = False
 
     @zenith_fused_gelu_p.def_abstract_eval
     def _fused_gelu_abstract_eval(x_aval, approximate=True):
         """Shape inference for fused GELU."""
-        return jax.core.ShapedArray(shape=x_aval.shape, dtype=x_aval.dtype)
+        return ShapedArray(shape=x_aval.shape, dtype=x_aval.dtype)
 
     @zenith_fused_gelu_p.def_impl
     def _fused_gelu_impl(x, approximate=True):
@@ -511,7 +578,7 @@ def _register_all_primitives(registry: ZenithPrimitiveRegistry) -> None:
 
         return gelu_output, dgelu * dx
 
-    jax.interpreters.ad.primitive_jvps[zenith_fused_gelu_p] = _fused_gelu_jvp
+    ad.primitive_jvps[zenith_fused_gelu_p] = _fused_gelu_jvp
 
     registry.register("zenith_fused_gelu", zenith_fused_gelu_p)
 
@@ -519,13 +586,14 @@ def _register_all_primitives(registry: ZenithPrimitiveRegistry) -> None:
     # 4. FUSED SOFTMAX PRIMITIVE
     # ==========================================================================
 
-    zenith_fused_softmax_p = jax.core.Primitive("zenith_fused_softmax")
+    zenith_fused_softmax_p = Primitive("zenith_fused_softmax")
+
     zenith_fused_softmax_p.multiple_results = False
 
     @zenith_fused_softmax_p.def_abstract_eval
     def _fused_softmax_abstract_eval(x_aval, axis=-1):
         """Shape inference for fused softmax."""
-        return jax.core.ShapedArray(shape=x_aval.shape, dtype=x_aval.dtype)
+        return ShapedArray(shape=x_aval.shape, dtype=x_aval.dtype)
 
     @zenith_fused_softmax_p.def_impl
     def _fused_softmax_impl(x, axis=-1):
@@ -554,7 +622,7 @@ def _register_all_primitives(registry: ZenithPrimitiveRegistry) -> None:
 
         return s, ds
 
-    jax.interpreters.ad.primitive_jvps[zenith_fused_softmax_p] = _fused_softmax_jvp
+    ad.primitive_jvps[zenith_fused_softmax_p] = _fused_softmax_jvp
 
     registry.register("zenith_fused_softmax", zenith_fused_softmax_p)
 

@@ -62,6 +62,36 @@ def _get_jnp():
         ) from e
 
 
+def _get_primitive_class():
+    """Get Primitive class with JAX version compatibility."""
+    try:
+        from jax.extend.core import Primitive
+
+        return Primitive
+    except (ImportError, AttributeError):
+        try:
+            from jax.core import Primitive
+
+            return Primitive
+        except (ImportError, AttributeError):
+            raise ImportError("Cannot find jax Primitive class") from None
+
+
+def _get_shaped_array_class():
+    """Get ShapedArray class with JAX version compatibility."""
+    try:
+        from jax.extend.core import ShapedArray
+
+        return ShapedArray
+    except (ImportError, AttributeError):
+        try:
+            from jax.core import ShapedArray
+
+            return ShapedArray
+        except (ImportError, AttributeError):
+            raise ImportError("Cannot find jax ShapedArray class") from None
+
+
 class XLADeviceKind(Enum):
     """XLA device types."""
 
@@ -192,9 +222,9 @@ class XLAKernel(ABC):
 
     def register(self) -> None:
         """Register kernel as JAX primitive."""
-        jax = _get_jax()
+        Primitive = _get_primitive_class()
 
-        self._primitive = jax.core.Primitive(self._name)
+        self._primitive = Primitive(self._name)
         self._primitive.multiple_results = False
 
         # Register abstract eval
@@ -237,7 +267,7 @@ class FusedAttentionKernel(XLAKernel):
         scale=None,
     ):
         """Shape inference for fused attention."""
-        jax = _get_jax()
+        ShapedArray = _get_shaped_array_class()
 
         if len(q_aval.shape) != 4:
             raise ValueError(
@@ -246,7 +276,7 @@ class FusedAttentionKernel(XLAKernel):
 
         batch, heads, seq_q, head_dim = q_aval.shape
 
-        return jax.core.ShapedArray(
+        return ShapedArray(
             shape=(batch, heads, seq_q, head_dim),
             dtype=q_aval.dtype,
         )
@@ -385,8 +415,8 @@ class FusedLayerNormKernel(XLAKernel):
 
     def abstract_eval(self, x_aval, weight_aval, bias_aval, eps=1e-5):
         """Shape inference - output same as input."""
-        jax = _get_jax()
-        return jax.core.ShapedArray(shape=x_aval.shape, dtype=x_aval.dtype)
+        ShapedArray = _get_shaped_array_class()
+        return ShapedArray(shape=x_aval.shape, dtype=x_aval.dtype)
 
     def impl(self, x, weight, bias, eps=1e-5):
         """Fused layer normalization."""
@@ -419,8 +449,8 @@ class FusedSoftmaxKernel(XLAKernel):
 
     def abstract_eval(self, x_aval, axis=-1):
         """Shape inference - output same as input."""
-        jax = _get_jax()
-        return jax.core.ShapedArray(shape=x_aval.shape, dtype=x_aval.dtype)
+        ShapedArray = _get_shaped_array_class()
+        return ShapedArray(shape=x_aval.shape, dtype=x_aval.dtype)
 
     def impl(self, x, axis=-1):
         """Numerically stable softmax."""
