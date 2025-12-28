@@ -394,12 +394,15 @@ class JAXONNXExporter:
             outputs,
         )
 
-        # Create model
+        # Create model with explicit IR version for onnxruntime compatibility
         model = helper.make_model(
             graph,
             producer_name=config.producer_name,
             opset_imports=[helper.make_opsetid("", config.opset_version)],
         )
+        # Set IR version to 8 for broad onnxruntime compatibility
+        # (IR version 9+ may not be supported by older onnxruntime)
+        model.ir_version = 8
 
         return model
 
