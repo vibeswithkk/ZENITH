@@ -26,13 +26,12 @@ Performance Characteristics:
 
 from __future__ import annotations
 
-import functools
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Optional, Tuple, Union
+from typing import Optional
+
 
 import numpy as np
 
@@ -264,9 +263,6 @@ class FusedAttentionKernel(XLAKernel):
 
         Uses tiled computation to reduce memory footprint from O(N^2) to O(N).
         """
-        jnp = _get_jnp()
-        jax = _get_jax()
-
         batch, heads, seq_q, head_dim = q.shape
         _, _, seq_k, _ = k.shape
 
