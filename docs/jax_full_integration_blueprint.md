@@ -62,15 +62,15 @@ zenith/
 
 ### 1.2 Gap Analysis
 
-| Component | Current Status | Required for Full Integration |
-|-----------|---------------|------------------------------|
-| JAX Adapter | ✅ Exists (47KB) | Needs enhancement |
-| XLA Backend | ❌ Missing | **Must create** |
-| JAX Primitives | ❌ Missing | **Must create** |
-| JAX Checkpointing | ❌ Missing | **Must create** |
-| JAX Memory Mgmt | ❌ Missing | **Must create** |
-| Mixed Precision | ⚠️ Partial | Needs completion |
-| ONNX Export | ✅ Basic | Needs robustness |
+| Component         | Current Status   | Required for Full Integration |
+|-------------------|------------------|-------------------------------|
+| JAX Adapter          Exists (47KB) | Needs enhancement             |
+| XLA Backend       |  Missing       | **Must create**               |
+| JAX Primitives    |  Missing       | **Must create**               |
+| JAX Checkpointing |  Missing       | **Must create**               |
+| JAX Memory Mgmt   |  Missing       | **Must create**               |
+| Mixed Precision   |  Partial       | Needs completion              |
+| ONNX Export       |  Basic         | Needs robustness              |
 
 ### 1.3 Current JAXAdapter Capabilities
 
@@ -92,36 +92,36 @@ From `jax_adapter.py` analysis:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         User Application                             │
+│                         User Application                            │
 ├─────────────────────────────────────────────────────────────────────┤
 │                         zenith.jax API                              │
-│  ┌─────────────┬─────────────┬─────────────┬─────────────────────┐ │
-│  │  compile()  │ checkpoint()│  optimize() │  export_onnx()     │ │
-│  └─────────────┴─────────────┴─────────────┴─────────────────────┘ │
+│  ┌─────────────┬─────────────┬─────────────┬─────────────────────┐  │
+│  │  compile()  │ checkpoint()│  optimize() │  export_onnx()      │  │
+│  └─────────────┴─────────────┴─────────────┴─────────────────────┘  │
 ├─────────────────────────────────────────────────────────────────────┤
 │                      JAX Integration Layer                          │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │                    JAXAdapter (Enhanced)                     │   │
-│  │  ┌──────────────┬──────────────┬──────────────────────────┐ │   │
-│  │  │ Model Import │ Graph Lower  │ Execution Control        │ │   │
-│  │  └──────────────┴──────────────┴──────────────────────────┘ │   │
-│  └─────────────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │                    JAXAdapter (Enhanced)                    │    │
+│  │  ┌──────────────┬──────────────┬──────────────────────────┐ │    │
+│  │  │ Model Import │ Graph Lower  │ Execution Control        │ │    │
+│  │  └──────────────┴──────────────┴──────────────────────────┘ │    │
+│  └─────────────────────────────────────────────────────────────┘    │
 ├─────────────────────────────────────────────────────────────────────┤
-│                      Core Components                                 │
-│  ┌───────────────┬───────────────┬───────────────┬───────────────┐ │
+│                      Core Components                                │
+│  ┌───────────────┬───────────────┬───────────────┬───────────────┐  │
 │  │ JAX Backend   │ JAX Memory    │ JAX Primitives│ Mixed Precision│ │
 │  │ (XLA)         │ Manager       │ Registry      │ Policy         │ │
-│  └───────────────┴───────────────┴───────────────┴───────────────┘ │
+│  └───────────────┴───────────────┴───────────────┴───────────────┘  │
 ├─────────────────────────────────────────────────────────────────────┤
 │                      Zenith Core                                    │
-│  ┌───────────────┬───────────────┬───────────────────────────────┐ │
-│  │   GraphIR     │  Optimizer    │     Compiler                  │ │
-│  └───────────────┴───────────────┴───────────────────────────────┘ │
+│  ┌───────────────┬───────────────┬───────────────────────────────┐  │
+│  │   GraphIR     │  Optimizer    │     Compiler                  │  │
+│  └───────────────┴───────────────┴───────────────────────────────┘  │
 ├─────────────────────────────────────────────────────────────────────┤
 │                      Hardware Backends                              │
-│  ┌──────────┬──────────┬──────────┬──────────┬──────────────────┐ │
-│  │   CUDA   │   XLA    │   ROCm   │   CPU    │      TPU         │ │
-│  └──────────┴──────────┴──────────┴──────────┴──────────────────┘ │
+│  ┌──────────┬──────────┬──────────┬──────────┬──────────────────┐   │
+│  │   CUDA   │   XLA    │   ROCm   │   CPU    │      TPU         │   │
+│  └──────────┴──────────┴──────────┴──────────┴──────────────────┘   │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -227,13 +227,13 @@ jax.interpreters.ad.primitive_transposes[zenith_fused_attention_p] = _attention_
 ```
 
 **Primitives Roadmap:**
-| Primitive | Priority | Expected Speedup |
-|-----------|----------|------------------|
-| `zenith_fused_attention` | P0 | 40-60% |
-| `zenith_fused_layernorm` | P0 | 20-30% |
-| `zenith_fused_gelu` | P1 | 15-25% |
-| `zenith_optimized_matmul` | P1 | 10-20% |
-| `zenith_fused_softmax` | P2 | 15-25% |
+| Primitive                 | Priority | Expected Speedup |
+|---------------------------|----------|------------------|
+| `zenith_fused_attention`  | P0       | 40-60%           |
+| `zenith_fused_layernorm`  | P0       | 20-30%           |
+| `zenith_fused_gelu`       | P1       | 15-25%           |
+| `zenith_optimized_matmul` | P1       | 10-20%           |
+| `zenith_fused_softmax`    | P2       | 15-25%           |
 
 **Reference:** JAX Custom Primitives Guide (https://jax.dev/docs/primitives.html)
 
@@ -598,14 +598,14 @@ def validate_onnx_model(
 
 **Supported Operations Mapping:**
 
-| JAX Op | ONNX Op | Notes |
-|--------|---------|-------|
-| `lax.dot_general` | `MatMul`, `Einsum` | - |
-| `lax.conv_general_dilated` | `Conv` | - |
-| `nn.softmax` | `Softmax` | - |
-| `nn.relu` | `Relu` | - |
-| `nn.gelu` | `Gelu` (opset 20+) or decomposed | - |
-| `lax.reduce_sum` | `ReduceSum` | - |
+| JAX Op                     | ONNX Op                          | Notes |
+|----------------------------|----------------------------------|-------|
+| `lax.dot_general`          | `MatMul`, `Einsum`               | -     |
+| `lax.conv_general_dilated` | `Conv`                           | -     |
+| `nn.softmax`               | `Softmax`                        | -     |
+| `nn.relu`                  | `Relu`                           | -     |
+| `nn.gelu`                  | `Gelu` (opset 20+) or decomposed | -     |
+| `lax.reduce_sum`           | `ReduceSum`                      | -     |
 
 **Reference:** 
 - jax2onnx (https://github.com/enpasos/jax2onnx)
@@ -712,13 +712,13 @@ where ε depends on numerical precision (typically 1e-6 for FP32, 1e-3 for FP16)
 
 **Priority: P0 (Critical)**
 
-| Task | File | Effort |
-|------|------|--------|
-| JAX Gradient Checkpointing | `zenith/jax/checkpointing.py` | 3 days |
-| JAX Memory Manager | `zenith/jax/memory_manager.py` | 3 days |
-| Mixed Precision Policy | `zenith/jax/mixed_precision.py` | 2 days |
-| Unit Tests | `tests/python/test_jax_*.py` | 2 days |
-| Integration Tests | `tests/e2e/test_jax_workflow.py` | 2 days |
+| Task                       | File                            | Effort |
+|----------------------------|---------------------------------|--------|
+| JAX Gradient Checkpointing | `zenith/jax/checkpointing.py`   | 3 days |
+| JAX Memory Manager         | `zenith/jax/memory_manager.py`  | 3 days |
+| Mixed Precision Policy     | `zenith/jax/mixed_precision.py` | 2 days |
+| Unit Tests                 | `tests/python/test_jax_*.py`    | 2 days |
+| Integration Tests          | `tests/e2e/test_jax_workflow.py`| 2 days |
 
 **Deliverables:**
 - Working gradient checkpointing with 50%+ memory reduction
@@ -729,12 +729,12 @@ where ε depends on numerical precision (typically 1e-6 for FP32, 1e-3 for FP16)
 
 **Priority: P1 (High)**
 
-| Task | File | Effort |
-|------|------|--------|
-| XLA Backend | `zenith/backends/xla_backend.py` | 5 days |
-| GraphIR → HLO Conversion | `zenith/core/hlo_lowering.py` | 4 days |
-| ONNX Export Enhancement | `zenith/jax/onnx_export.py` | 3 days |
-| Integration Tests | `tests/e2e/test_xla_backend.py` | 2 days |
+| Task                     | File                             | Effort |
+|--------------------------|----------------------------------|--------|
+| XLA Backend              | `zenith/backends/xla_backend.py` | 5 days |
+| GraphIR → HLO Conversion | `zenith/core/hlo_lowering.py`    | 4 days |
+| ONNX Export Enhancement  | `zenith/jax/onnx_export.py`      | 3 days |
+| Integration Tests        | `tests/e2e/test_xla_backend.py`  | 2 days |
 
 **Deliverables:**
 - Direct XLA execution from GraphIR
@@ -745,12 +745,12 @@ where ε depends on numerical precision (typically 1e-6 for FP32, 1e-3 for FP16)
 
 **Priority: P1 (High)**
 
-| Task | File | Effort |
-|------|------|--------|
-| JAX Primitives Framework | `zenith/jax/primitives.py` | 4 days |
-| Fused Attention Primitive | `zenith/jax/primitives.py` | 3 days |
-| XLA Custom Kernels | `zenith/runtime/xla_kernels.py` | 4 days |
-| Performance Validation | `tests/perf/test_jax_primitives.py` | 3 days |
+| Task                      | File                                | Effort |
+|---------------------------|-------------------------------------|--------|
+| JAX Primitives Framework  | `zenith/jax/primitives.py`          | 4 days |
+| Fused Attention Primitive | `zenith/jax/primitives.py`          | 3 days |
+| XLA Custom Kernels        | `zenith/runtime/xla_kernels.py`     | 4 days |
+| Performance Validation    | `tests/perf/test_jax_primitives.py` | 3 days |
 
 **Deliverables:**
 - Custom JAX primitives with JVP/VJP
@@ -761,13 +761,13 @@ where ε depends on numerical precision (typically 1e-6 for FP32, 1e-3 for FP16)
 
 **Priority: P0 (Critical)**
 
-| Task | File | Effort |
-|------|------|--------|
+| Task                      | File                                    | Effort |
+|---------------------------|-----------------------------------------|--------|
 | Colab Notebook Validation | `notebooks/zenith_jax_validation.ipynb` | 2 days |
-| Documentation | `docs/jax_integration.md` | 2 days |
-| Performance Benchmarks | `benchmarks/jax_benchmarks.py` | 3 days |
-| Bug Fixes | Various | 4 days |
-| Release Preparation | pyproject.toml, CHANGELOG | 1 day |
+| Documentation             | `docs/jax_integration.md`               | 2 days |
+| Performance Benchmarks    | `benchmarks/jax_benchmarks.py`          | 3 days |
+| Bug Fixes                 | Various                                 | 4 days |
+| Release Preparation       | pyproject.toml, CHANGELOG               | 1 day  |
 
 **Deliverables:**
 - Fully validated JAX integration
@@ -816,11 +816,11 @@ def test_huggingface_flax_bert():
 
 ### 6.3 Performance Tests
 
-| Test | Baseline | Target |
-|------|----------|--------|
-| BERT inference | 10ms | 6ms (40% reduction) |
-| ResNet training step | 100ms | 60ms (40% reduction) |
-| Memory (Transformer-XL) | 16GB | 8GB (50% reduction) |
+| Test                    | Baseline | Target               |
+|-------------------------|----------|----------------------|
+| BERT inference          | 10ms     | 6ms (40% reduction)  |
+| ResNet training step    | 100ms    | 60ms (40% reduction) |
+| Memory (Transformer-XL) | 16GB     | 8GB (50% reduction)  |
 
 ---
 
@@ -828,11 +828,11 @@ def test_huggingface_flax_bert():
 
 ### 7.1 Memory Reduction
 
-| Feature | Target Reduction |
-|---------|-----------------|
-| Gradient Checkpointing | 50-70% |
-| Mixed Precision (BF16) | 50% |
-| Combined | 60-80% |
+| Feature                | Target Reduction |
+|------------------------|------------------|
+| Gradient Checkpointing | 50-70%           |
+| Mixed Precision (BF16) | 50%              |
+| Combined               | 60-80%           |
 
 ### 7.2 Speed Improvement
 
@@ -845,11 +845,11 @@ def test_huggingface_flax_bert():
 
 ### 7.3 Numerical Accuracy
 
-| Metric | Tolerance |
-|--------|-----------|
-| FP32 output diff | ≤ 1e-6 |
-| BF16 output diff | ≤ 1e-3 |
-| Gradient diff | ≤ 1e-4 |
+| Metric           | Tolerance |
+|------------------|-----------|
+| FP32 output diff | ≤ 1e-6    |
+| BF16 output diff | ≤ 1e-3    |
+| Gradient diff    | ≤ 1e-4    |
 
 ---
 
@@ -876,12 +876,12 @@ def test_huggingface_flax_bert():
 
 ## Appendix A: Risk Assessment
 
-| Risk | Probability | Impact | Mitigation |
-|------|------------|--------|------------|
-| XLA API changes | Medium | High | Pin JAX versions, abstract XLA interaction |
-| Custom primitive complexity | High | Medium | Start with simple primitives, iterate |
-| Performance regression | Low | High | Extensive benchmarking, CI tests |
-| Numerical instability (FP16) | Medium | Medium | Dynamic loss scaling, extensive validation |
+| Risk                         | Probability| Impact | Mitigation                                 |
+|------------------------------|------------|--------|--------------------------------------------|
+| XLA API changes              | Medium     | High   | Pin JAX versions, abstract XLA interaction |
+| Custom primitive complexity  | High       | Medium | Start with simple primitives, iterate      |
+| Performance regression       | Low        | High   | Extensive benchmarking, CI tests           |
+| Numerical instability (FP16) | Medium     | Medium | Dynamic loss scaling, extensive validation |
 
 ---
 
