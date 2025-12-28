@@ -412,12 +412,21 @@ def checkpoint(
 
     jax_policy = _create_jax_policy(policy)
 
-    return jax.checkpoint(
-        fn,
-        prevent_cse=prevent_cse,
-        policy=jax_policy,
-        static_argnums=static_argnums,
-    )
+    # Only pass static_argnums if it's not None
+    # JAX's checkpoint doesn't accept None for this parameter
+    if static_argnums is not None:
+        return jax.checkpoint(
+            fn,
+            prevent_cse=prevent_cse,
+            policy=jax_policy,
+            static_argnums=static_argnums,
+        )
+    else:
+        return jax.checkpoint(
+            fn,
+            prevent_cse=prevent_cse,
+            policy=jax_policy,
+        )
 
 
 def checkpoint_sequential(
