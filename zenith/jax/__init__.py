@@ -33,6 +33,45 @@ from ..adapters.jax_adapter import (
     compile,
 )
 
+# Import checkpointing module
+from .checkpointing import (
+    CheckpointPolicy,
+    SelectionMethod,
+    CheckpointConfig,
+    CheckpointingStats,
+    OptimalCheckpointSelector,
+    ZenithCheckpointer,
+    checkpoint,
+    checkpoint_sequential,
+    remat,
+)
+
+# Import memory management module
+from .memory_manager import (
+    EvictionPolicy,
+    DeviceType,
+    JAXMemoryConfig,
+    ArrayMetadata,
+    MemoryStats,
+    JAXActivationStore,
+    JAXMemoryManager,
+    compute_array_size,
+    get_device_memory_info,
+)
+
+# Import mixed precision module
+from .mixed_precision import (
+    PrecisionMode,
+    MixedPrecisionPolicy,
+    LossScalerConfig,
+    LossScalerState,
+    DynamicLossScaler,
+    MixedPrecisionStats,
+    ZenithMixedPrecision,
+    create_policy,
+    detect_best_precision,
+)
+
 # Default adapter instance
 _default_adapter: JAXAdapter = None
 
@@ -264,6 +303,7 @@ def is_available() -> bool:
 
 # Expose key classes and functions
 __all__ = [
+    # Core adapter
     "JAXAdapter",
     "ZenithJAXConfig",
     "ZenithCompiledJAXFunction",
@@ -283,4 +323,34 @@ __all__ = [
     "wrap_training_step",
     "to_onnx",
     "is_available",
+    # Checkpointing
+    "CheckpointPolicy",
+    "SelectionMethod",
+    "CheckpointConfig",
+    "CheckpointingStats",
+    "OptimalCheckpointSelector",
+    "ZenithCheckpointer",
+    "checkpoint",
+    "checkpoint_sequential",
+    "remat",
+    # Memory management
+    "EvictionPolicy",
+    "DeviceType",
+    "JAXMemoryConfig",
+    "ArrayMetadata",
+    "MemoryStats",
+    "JAXActivationStore",
+    "JAXMemoryManager",
+    "compute_array_size",
+    "get_device_memory_info",
+    # Mixed precision
+    "PrecisionMode",
+    "MixedPrecisionPolicy",
+    "LossScalerConfig",
+    "LossScalerState",
+    "DynamicLossScaler",
+    "MixedPrecisionStats",
+    "ZenithMixedPrecision",
+    "create_policy",
+    "detect_best_precision",
 ]
