@@ -105,6 +105,23 @@ def _get_ad_module():
             ) from None
 
 
+def _get_mlir_module():
+    """Get the MLIR module with version compatibility."""
+    try:
+        # Modern JAX
+        from jax.extend import mlir
+
+        return mlir
+    except (ImportError, AttributeError):
+        try:
+            # Legacy JAX
+            from jax.interpreters import mlir
+
+            return mlir
+        except (ImportError, AttributeError):
+            return None
+
+
 def _get_jnp():
     """Lazy import of jax.numpy."""
     try:
@@ -205,6 +222,7 @@ def _register_all_primitives(registry: ZenithPrimitiveRegistry) -> None:
     Primitive = _get_primitive_class()
     ShapedArray = _get_shaped_array_class()
     ad = _get_ad_module()
+    mlir = _get_mlir_module()
     # Note: jax and jnp are imported lazily within each implementation function
 
     # ==========================================================================
@@ -414,6 +432,12 @@ def _register_all_primitives(registry: ZenithPrimitiveRegistry) -> None:
 
     registry.register("zenith_fused_attention", zenith_fused_attention_p)
 
+    if mlir:
+        mlir.register_lowering(
+            zenith_fused_attention_p,
+            mlir.lower_fun(_fused_attention_impl, multiple_results=False),
+        )
+
     # ==========================================================================
     # 2. FUSED LAYER NORMALIZATION PRIMITIVE
     # ==========================================================================
@@ -510,6 +534,12 @@ def _register_all_primitives(registry: ZenithPrimitiveRegistry) -> None:
 
     registry.register("zenith_fused_layernorm", zenith_fused_layernorm_p)
 
+    if mlir:
+        mlir.register_lowering(
+            zenith_fused_layernorm_p,
+            mlir.lower_fun(_fused_layernorm_impl, multiple_results=False),
+        )
+
     # ==========================================================================
     # 3. FUSED GELU PRIMITIVE
     # ==========================================================================
@@ -583,6 +613,12 @@ def _register_all_primitives(registry: ZenithPrimitiveRegistry) -> None:
 
     registry.register("zenith_fused_gelu", zenith_fused_gelu_p)
 
+    if mlir:
+        mlir.register_lowering(
+            zenith_fused_gelu_p,
+            mlir.lower_fun(_fused_gelu_impl, multiple_results=False),
+        )
+
     # ==========================================================================
     # 4. FUSED SOFTMAX PRIMITIVE
     # ==========================================================================
@@ -626,6 +662,12 @@ def _register_all_primitives(registry: ZenithPrimitiveRegistry) -> None:
     ad.primitive_jvps[zenith_fused_softmax_p] = _fused_softmax_jvp
 
     registry.register("zenith_fused_softmax", zenith_fused_softmax_p)
+
+    if mlir:
+        mlir.register_lowering(
+            zenith_fused_softmax_p,
+            mlir.lower_fun(_fused_softmax_impl, multiple_results=False),
+        )
 
 
 def fused_attention(
