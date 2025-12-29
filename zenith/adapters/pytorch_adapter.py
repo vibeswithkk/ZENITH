@@ -659,21 +659,24 @@ class PyTorchAdapter(BaseAdapter):
                 f"Zenith backend compiling with target={target}, precision={precision}"
             )
 
-            # Phase 1: Apply FX graph pattern optimizations
-            try:
-                from ..optimization.fx_optimizer import optimize_fx_graph
+            # Phase 1: Apply FX graph pattern optimizations (opt_level >= 3 only)
+            # Note: Modern HuggingFace models already use F.scaled_dot_product_attention
+            # so pattern matching rarely finds opportunities. Only enable at high opt level.
+            if opt_level >= 3:
+                try:
+                    from ..optimization.fx_optimizer import optimize_fx_graph
 
-                gm = optimize_fx_graph(
-                    gm,
-                    example_inputs,
-                    enable_attention=True,
-                    enable_activation=True,
-                    enable_normalization=True,
-                    verbose=(opt_level >= 2),
-                )
-                logger.debug("FX optimization passes applied")
-            except Exception as e:
-                logger.debug(f"FX optimization skipped: {e}")
+                    gm = optimize_fx_graph(
+                        gm,
+                        example_inputs,
+                        enable_attention=True,
+                        enable_activation=True,
+                        enable_normalization=True,
+                        verbose=True,
+                    )
+                    logger.debug("FX optimization passes applied")
+                except Exception as e:
+                    logger.debug(f"FX optimization skipped: {e}")
 
             # Phase 2: Convert FX Graph to GraphIR
             try:
