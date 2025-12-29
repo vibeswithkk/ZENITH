@@ -1,0 +1,136 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly security scan on Monday at 00:00 UTC
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+
+jobs:
+  sast:
+    name: SAST Scan (Bandit)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install Bandit
+        run: pip install bandit
+      
+      - name: Run Bandit SAST scan
+        run: |
+          bandit -r zenith/ \
+            -f json \
+            -o bandit-report.json \
+            --exclude "*/tests/*,*/__pycache__/*" \
+            -ll || true
+      
+      - name: Upload Bandit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.json
+      
+      - name: Check for high severity issues
+        run: |
+          if [ -f bandit-report.json ]; then
+            HIGH_COUNT=$(python -c "import json; data=json.load(open('bandit-report.json')); print(len([r for r in data.get('results', []) if r.get('issue_severity') == 'HIGH']))")
+            echo "High severity issues: $HIGH_COUNT"
+            if [ "$HIGH_COUNT" -gt 0 ]; then
+              echo "::error::Found $HIGH_COUNT high severity issues"
+              exit 1
+            fi
+          fi
+
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install safety pip-audit
+          pip install -e . || pip install .
+      
+      - name: Run Safety scan
+        run: |
+          safety check --json > safety-report.json 2>&1 || true
+        continue-on-error: true
+      
+      - name: Run pip-audit
+        run: |
+          pip-audit --format json > pip-audit-report.json 2>&1 || true
+        continue-on-error: true
+      
+      - name: Upload dependency reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-reports
+          path: |
+            safety-report.json
+            pip-audit-report.json
+
+  fuzz-tests:
+    name: Fuzzing Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install hypothesis pytest
+          pip install -e . || pip install .
+      
+      - name: Run fuzzing tests
+        run: |
+          pytest security/fuzz_tests.py -v \
+            --hypothesis-show-statistics \
+            --tb=short
+
+  security-summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [sast, dependency-scan, fuzz-tests]
+    if: always()
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: reports
+        continue-on-error: true
+      
+      - name: Generate summary
+        run: |
+          echo "# Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| SAST (Bandit) | ${{ needs.sast.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dependency Scan | ${{ needs.dependency-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Fuzzing Tests | ${{ needs.fuzz-tests.result }} |" >> $GITHUB_STEP_SUMMARY
