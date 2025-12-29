@@ -9,9 +9,9 @@
 [![CI](https://github.com/vibeswithkk/ZENITH/actions/workflows/ci.yml/badge.svg)](https://github.com/vibeswithkk/ZENITH/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/Tests-942+-success.svg)](#)
 
-**Cross-Platform ML Optimization Framework**
+**A hobby project exploring ML optimization**
 
-Zenith is a hobby project that aims to be a helpful companion framework for PyTorch, JAX, and TensorFlow. It provides optimization utilities like native CUDA kernels, operator fusion, and quantization to help make your inference stack a bit faster.
+Zenith is an experimental project where I'm learning and exploring optimization techniques for machine learning. It tries to provide some useful utilities like custom CUDA kernels and operator fusion for PyTorch, JAX, and TensorFlow. This is a learning project - use at your own risk!
 
 ## Project History
 
