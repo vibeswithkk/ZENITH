@@ -189,6 +189,27 @@ cuda.layernorm(input_tensor, gamma, beta, eps=1e-5)
 cuda.softmax(input_tensor)
 ```
 
+### JAX Integration
+
+```python
+import jax
+import jax.numpy as jnp
+from zenith.jax.primitives import fused_attention, fused_gelu
+
+# Fused attention - JIT-compatible and differentiable
+batch, heads, seq, dim = 2, 8, 512, 64
+q = jax.random.normal(jax.random.PRNGKey(0), (batch, heads, seq, dim))
+k = jax.random.normal(jax.random.PRNGKey(1), (batch, heads, seq, dim))
+v = jax.random.normal(jax.random.PRNGKey(2), (batch, heads, seq, dim))
+
+output = fused_attention(q, k, v)
+
+# Works with jax.grad
+grads = jax.grad(lambda q, k, v: jnp.sum(fused_attention(q, k, v)))(q, k, v)
+```
+
+See [JAX Integration Guide](./docs/jax_integration.md) for more examples.
+
 ---
 
 ## Architecture
