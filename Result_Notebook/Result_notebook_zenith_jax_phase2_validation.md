@@ -1,4 +1,4 @@
-Hasil dari notebook ini adalah validasi untukzenith jax phase 2.
+The result of this notebook is validation for zenith jax phase 2.
 
 https://colab.research.google.com/github/vibeswithkk/ZENITH/blob/main/notebooks/zenith_jax_phase2_validation.ipynb 
 

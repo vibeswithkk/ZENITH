@@ -1,4 +1,4 @@
-ini adalah hasil dari test di Notebook : 
+This is the result of the test on the Notebook from:
 https://colab.research.google.com/github/vibeswithkk/ZENITH/blob/main/notebooks/zenith_jax_phase3_validation.ipynb#scrollTo=fZ-1iGgwgo-g 
 
 # Zenith JAX Phase 3 Validation

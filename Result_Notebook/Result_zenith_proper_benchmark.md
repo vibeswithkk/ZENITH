@@ -1,4 +1,4 @@
-ini adalah hasil dari test di Notebook : 
+This is the result of the test on the Notebook from:
 https://colab.research.google.com/github/vibeswithkk/ZENITH/blob/main/notebooks/zenith_proper_benchmark.ipynb 
 
 Zenith Performance Benchmark - Proper Backend

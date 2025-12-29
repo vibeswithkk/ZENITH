@@ -1,4 +1,4 @@
-Ini adalah hasil Notebook dari hasil test 
+This is the Notebook result from the test results from:
 https://colab.research.google.com/github/vibeswithkk/ZENITH/blob/main/notebooks/zenith_advanced_validation.ipynb?flush_cache=1
 
 # Install pyzenith v0.2.9 (with memory and inference modules)

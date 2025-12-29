@@ -1,4 +1,4 @@
-ini adalah hasil dari test di Notebook :
+This is the result of the test on the Notebook from:
 https://colab.research.google.com/github/vibeswithkk/ZENITH/blob/main/notebooks/zenith_jax_phase1_validation.ipynb
 
 # STEP 1: Clean install from GitHub (specific commit with all fixes)
