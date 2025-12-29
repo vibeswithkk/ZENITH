@@ -24,6 +24,7 @@ from .metrics import (
     InferenceMetrics,
     MetricsCollector,
     get_metrics_collector,
+    reset_metrics_collector,
 )
 
 __all__ = [
@@ -37,4 +38,5 @@ __all__ = [
     "InferenceMetrics",
     "MetricsCollector",
     "get_metrics_collector",
+    "reset_metrics_collector",
 ]
