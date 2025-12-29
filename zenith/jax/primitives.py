@@ -312,6 +312,9 @@ def _register_all_primitives(registry: ZenithPrimitiveRegistry) -> None:
     def _fused_attention_jvp(
         primals,
         tangents,
+        mask=None,
+        scale=None,
+        dropout_rate=0.0,
     ):
         """JVP rule for fused attention.
 
@@ -322,9 +325,7 @@ def _register_all_primitives(registry: ZenithPrimitiveRegistry) -> None:
         jnp = _get_jnp()
         jax = _get_jax()
 
-        q, k, v = primals[:3]
-        mask = primals[3] if len(primals) > 3 else None
-        scale = primals[4] if len(primals) > 4 else None
+        q, k, v = primals
 
         dq, dk, dv = tangents[:3]
 
@@ -473,12 +474,12 @@ def _register_all_primitives(registry: ZenithPrimitiveRegistry) -> None:
         return output
 
     # JVP for layer norm
-    def _fused_layernorm_jvp(primals, tangents):
+    def _fused_layernorm_jvp(primals, tangents, eps=1e-5):
         """JVP rule for fused layer normalization."""
         jnp = _get_jnp()
 
-        x, weight, bias = primals[:3]
-        eps = primals[3] if len(primals) > 3 else 1e-5
+        x, weight, bias = primals
+
         dx, dweight, dbias = tangents[:3]
 
         # Forward
@@ -545,7 +546,7 @@ def _register_all_primitives(registry: ZenithPrimitiveRegistry) -> None:
             return 0.5 * x * (1.0 + jax.scipy.special.erf(x / math.sqrt(2.0)))
 
     # GELU derivative for JVP
-    def _fused_gelu_jvp(primals, tangents):
+    def _fused_gelu_jvp(primals, tangents, approximate=True):
         """JVP for GELU.
 
         d/dx GELU(x) = Phi(x) + x * phi(x)
@@ -555,7 +556,7 @@ def _register_all_primitives(registry: ZenithPrimitiveRegistry) -> None:
         jax = _get_jax()
 
         x = primals[0]
-        approximate = primals[1] if len(primals) > 1 else True
+
         dx = tangents[0]
 
         if approximate:
@@ -609,12 +610,12 @@ def _register_all_primitives(registry: ZenithPrimitiveRegistry) -> None:
         exp_x = jnp.exp(x - x_max)
         return exp_x / jnp.sum(exp_x, axis=axis, keepdims=True)
 
-    def _fused_softmax_jvp(primals, tangents):
+    def _fused_softmax_jvp(primals, tangents, axis=-1):
         """JVP for softmax: d_softmax = s * (dx - sum(s * dx))."""
         jnp = _get_jnp()
 
         x = primals[0]
-        axis = primals[1] if len(primals) > 1 else -1
+
         dx = tangents[0]
 
         s = _fused_softmax_impl(x, axis)
