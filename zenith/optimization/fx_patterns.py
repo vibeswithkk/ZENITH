@@ -14,7 +14,7 @@ Uses PyTorch's torch.fx.subgraph_rewriter for pattern matching.
 """
 
 import logging
-from typing import Any, Callable, Optional
+from typing import Callable
 from dataclasses import dataclass
 
 logger = logging.getLogger("zenith.optimization.fx_patterns")
@@ -38,9 +38,6 @@ except ImportError:
 
 # Check for Zenith CUDA kernels (JIT compiled)
 try:
-    from torch.utils.cpp_extension import load
-    import os
-
     # Try to import pre-compiled zenith_cuda module
     try:
         import zenith_cuda as _zenith_cuda

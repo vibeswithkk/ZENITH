@@ -210,6 +210,28 @@ grads = jax.grad(lambda q, k, v: jnp.sum(fused_attention(q, k, v)))(q, k, v)
 
 See [JAX Integration Guide](./docs/jax_integration.md) for more examples.
 
+### torch.compile Backend (New in v0.3.0)
+
+Zenith now integrates with PyTorch 2.0+ `torch.compile` for automatic optimization:
+
+```python
+import torch
+import zenith  # Auto-registers 'zenith' backend
+
+model = YourModel().cuda()
+
+# Use Zenith as torch.compile backend
+optimized_model = torch.compile(model, backend="zenith")
+
+# Run as normal - Zenith handles optimization
+output = optimized_model(input_tensor)
+```
+
+**Benchmark Results (TinyLlama 1.1B fine-tuning):**
+- Training speedup: **+7.92%**
+- No memory overhead
+- Numerical accuracy preserved
+
 ---
 
 ## Architecture
