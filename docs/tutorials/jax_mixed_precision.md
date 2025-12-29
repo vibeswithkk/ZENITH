@@ -58,14 +58,22 @@ class TransformerBlock(nn.Module):
 
 ## Performance Tips
 
-1. Use BF16 on TPUs, FP16 on GPUs
-2. Keep loss computation in FP32 for stability
-3. Use gradient scaling for FP16 training
+1. Use FP16 on NVIDIA GPUs with Tensor Cores
+2. Keep loss computation in FP32 for numerical stability
+3. Use gradient scaling for FP16 training to prevent underflow
 
-## Speedup Results
+## Expected Benefits
 
-| Hardware | FP32 | Mixed Precision | Speedup |
-|----------|------|-----------------|---------|
-| T4 GPU   | 100% | 180%            | 1.8x    |
-| A100 GPU | 100% | 250%            | 2.5x    |
-| TPU v4   | 100% | 200%            | 2.0x    |
+Mixed precision generally provides:
+- **Memory reduction:** ~50% (FP16 uses half the memory of FP32)
+- **Throughput increase:** Varies by hardware and model
+
+> **Note:** Actual speedups depend on your specific hardware, model architecture, and batch size. The benefits are most noticeable on GPUs with Tensor Cores (NVIDIA Volta, Turing, Ampere, etc.). TPU support in Zenith is currently experimental.
+
+## Running the Benchmark
+
+To measure mixed precision performance on your hardware:
+
+```bash
+python benchmarks/jax_benchmarks.py --precision
+```
