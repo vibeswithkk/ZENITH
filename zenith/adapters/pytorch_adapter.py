@@ -659,7 +659,23 @@ class PyTorchAdapter(BaseAdapter):
                 f"Zenith backend compiling with target={target}, precision={precision}"
             )
 
-            # Convert FX Graph to GraphIR
+            # Phase 1: Apply FX graph pattern optimizations
+            try:
+                from ..optimization.fx_optimizer import optimize_fx_graph
+
+                gm = optimize_fx_graph(
+                    gm,
+                    example_inputs,
+                    enable_attention=True,
+                    enable_activation=True,
+                    enable_normalization=True,
+                    verbose=(opt_level >= 2),
+                )
+                logger.debug("FX optimization passes applied")
+            except Exception as e:
+                logger.debug(f"FX optimization skipped: {e}")
+
+            # Phase 2: Convert FX Graph to GraphIR
             try:
                 graph_ir = self._fx_graph_to_graphir(gm, example_inputs)
                 logger.debug(f"Converted to GraphIR: {graph_ir.name}")
