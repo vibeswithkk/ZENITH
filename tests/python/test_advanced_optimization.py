@@ -113,13 +113,16 @@ class TestConvBNFusion:
         from zenith.optimization.fusion_pass import FusionPass
 
         fusion_pass = FusionPass()
-        assert len(fusion_pass.patterns) == 3
+        assert len(fusion_pass.patterns) == 6  # Updated: was 3, now 6 patterns
 
         # Check pattern names
         pattern_names = [p.name for p in fusion_pass.patterns]
         assert "conv_bn_relu" in pattern_names
         assert "conv_bn" in pattern_names
         assert "gemm_add" in pattern_names
+        assert "linear_gelu" in pattern_names  # BERT-specific
+        assert "layernorm_add" in pattern_names
+        assert "add_layernorm" in pattern_names
 
 
 class TestLayoutTransform:
