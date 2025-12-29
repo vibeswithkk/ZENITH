@@ -219,7 +219,7 @@ def _register_all_primitives(registry: ZenithPrimitiveRegistry) -> None:
         q_aval,
         k_aval,
         v_aval,
-        mask_aval=None,
+        mask=None,
         scale=None,
         dropout_rate=0.0,
     ):
