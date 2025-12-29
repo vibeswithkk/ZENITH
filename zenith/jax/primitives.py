@@ -106,20 +106,29 @@ def _get_ad_module():
 
 
 def _get_mlir_module():
-    """Get the MLIR module with version compatibility."""
+    """Get the MLIR module with version compatibility.
+
+    Checks for register_lowering specifically, as module structure varies.
+    """
+    # 1. Try legacy location (most stable for register_lowering)
     try:
-        # Modern JAX
+        from jax.interpreters import mlir
+
+        if hasattr(mlir, "register_lowering"):
+            return mlir
+    except (ImportError, AttributeError):
+        pass
+
+    # 2. Try modern/future location
+    try:
         from jax.extend import mlir
 
-        return mlir
-    except (ImportError, AttributeError):
-        try:
-            # Legacy JAX
-            from jax.interpreters import mlir
-
+        if hasattr(mlir, "register_lowering"):
             return mlir
-        except (ImportError, AttributeError):
-            return None
+    except (ImportError, AttributeError):
+        pass
+
+    return None
 
 
 def _get_jnp():
