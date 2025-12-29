@@ -263,7 +263,7 @@ class FusedAttentionKernel(XLAKernel):
         q_aval,
         k_aval,
         v_aval,
-        mask_aval=None,
+        mask=None,
         scale=None,
     ):
         """Shape inference for fused attention."""
@@ -562,7 +562,7 @@ def xla_fused_attention(
     kernel = _GLOBAL_REGISTRY.get("zenith_xla_fused_attention")
     if kernel is None:
         raise RuntimeError("Fused attention kernel not registered")
-    return kernel(q, k, v, mask, scale)
+    return kernel(q, k, v, mask=mask, scale=scale)
 
 
 def xla_fused_layernorm(x, weight, bias, eps=1e-5):
@@ -581,7 +581,7 @@ def xla_fused_layernorm(x, weight, bias, eps=1e-5):
     kernel = _GLOBAL_REGISTRY.get("zenith_xla_fused_layernorm")
     if kernel is None:
         raise RuntimeError("Fused layernorm kernel not registered")
-    return kernel(x, weight, bias, eps)
+    return kernel(x, weight, bias, eps=eps)
 
 
 def xla_fused_softmax(x, axis=-1):
@@ -598,4 +598,4 @@ def xla_fused_softmax(x, axis=-1):
     kernel = _GLOBAL_REGISTRY.get("zenith_xla_fused_softmax")
     if kernel is None:
         raise RuntimeError("Fused softmax kernel not registered")
-    return kernel(x, axis)
+    return kernel(x, axis=axis)
