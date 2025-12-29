@@ -130,7 +130,7 @@ Daftar tugas lengkap untuk mengimplementasikan Full JAX Integration berdasarkan 
 | JAX-045 | Implement XLA FFI Python bindings | `zenith/runtime/xla_kernels.py` | P2 | DONE | 8 |
 | JAX-046 | Create C++ XLA kernel registry (if needed) | `zenith/_native/xla_kernels.cpp` | P2 | SKIPPED | 16 |
 | JAX-047 | Implement fused attention XLA kernel | `zenith/runtime/xla_kernels.py` | P2 | DONE | 12 |
-| JAX-048 | Write performance tests for XLA kernels | `tests/perf/test_xla_kernels.py` | P2 | TODO | 6 |
+| JAX-048 | Write performance tests for XLA kernels | `tests/perf/test_xla_kernels.py` | P2 | DONE | 6 |
 
 **Deliverable:** XLA-optimized kernels via CustomCall
 

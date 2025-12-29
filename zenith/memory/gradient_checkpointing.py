@@ -8,7 +8,7 @@ This module provides memory-efficient training by selectively storing activation
 and recomputing them during backward pass. Based on Chen et al., 2016.
 
 Technical Foundation:
----------------------
+---------------------,
 Standard backpropagation requires O(N) memory for N layers, storing all
 intermediate activations. Gradient checkpointing reduces this to O(sqrt(N))
 by only storing checkpoint activations and recomputing intermediate values.
