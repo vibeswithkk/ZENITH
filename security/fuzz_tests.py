@@ -61,6 +61,10 @@ except ImportError:
         def lists(*args, **kwargs):
             return None
 
+        @staticmethod
+        def binary(*args, **kwargs):
+            return None
+
     def settings(*args, **kwargs):
         def decorator(func):
             return func

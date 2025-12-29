@@ -272,7 +272,8 @@ class XLABackend(BaseBackend):
         config_str = f"{config.device}_{config.precision}_{config.enable_fusion}"
 
         key_str = f"{fn_id}_{shapes_str}_{config_str}"
-        return hashlib.md5(key_str.encode()).hexdigest()
+        # MD5 used for cache key generation, not security purposes
+        return hashlib.md5(key_str.encode(), usedforsecurity=False).hexdigest()
 
     def compile(
         self,

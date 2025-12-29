@@ -186,6 +186,7 @@ class SecurityAuditor:
                     str(self.zenith_path),
                     "-f",
                     "json",
+                    "-q",  # Quiet mode to suppress INFO messages
                     "-ll",  # Only medium and high severity
                     "--exclude",
                     "*/tests/*,*/__pycache__/*",
@@ -196,8 +197,10 @@ class SecurityAuditor:
                 cwd=str(self.project_root),
             )
 
-            if result.stdout:
-                data = json.loads(result.stdout)
+            # Bandit outputs JSON to stdout, INFO to stderr
+            output = result.stdout if result.stdout.strip() else result.stderr
+            if output and output.strip().startswith("{"):
+                data = json.loads(output)
                 for issue in data.get("results", []):
                     findings.append(
                         SecurityFinding(
@@ -213,8 +216,8 @@ class SecurityAuditor:
 
         except subprocess.TimeoutExpired:
             print("  [ERROR] Bandit scan timed out")
-        except json.JSONDecodeError:
-            print("  [ERROR] Failed to parse Bandit output")
+        except json.JSONDecodeError as e:
+            print(f"  [WARN] Failed to parse Bandit output: {e}")
         except Exception as e:
             print(f"  [ERROR] Bandit scan failed: {e}")
 

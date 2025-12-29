@@ -734,7 +734,8 @@ class CachedGraphModel:
                 shapes.append(f"{k}:{tuple(val.shape)}")
 
         shape_str = "_".join(shapes)
-        return hashlib.md5(shape_str.encode()).hexdigest()[:16]
+        # MD5 used for cache key generation, not security purposes
+        return hashlib.md5(shape_str.encode(), usedforsecurity=False).hexdigest()[:16]
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         """Forward pass with automatic CUDA graph caching."""
