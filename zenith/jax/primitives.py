@@ -665,7 +665,7 @@ def fused_attention(
     if primitive is None:
         raise RuntimeError("Fused attention primitive not registered")
 
-    return primitive.bind(q, k, v, mask, scale, dropout_rate)
+    return primitive.bind(q, k, v, mask=mask, scale=scale, dropout_rate=dropout_rate)
 
 
 def fused_layernorm(
@@ -691,7 +691,7 @@ def fused_layernorm(
     if primitive is None:
         raise RuntimeError("Fused layernorm primitive not registered")
 
-    return primitive.bind(x, weight, bias, eps)
+    return primitive.bind(x, weight, bias, eps=eps)
 
 
 def fused_gelu(x, approximate=True):
@@ -710,7 +710,7 @@ def fused_gelu(x, approximate=True):
     if primitive is None:
         raise RuntimeError("Fused GELU primitive not registered")
 
-    return primitive.bind(x, approximate)
+    return primitive.bind(x, approximate=approximate)
 
 
 def fused_softmax(x, axis=-1):
@@ -729,7 +729,7 @@ def fused_softmax(x, axis=-1):
     if primitive is None:
         raise RuntimeError("Fused softmax primitive not registered")
 
-    return primitive.bind(x, axis)
+    return primitive.bind(x, axis=axis)
 
 
 def _ensure_primitives_initialized():
