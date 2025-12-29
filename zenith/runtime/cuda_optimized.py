@@ -91,10 +91,19 @@ class OptimizedExecutor:
         Execute model with optimal precision.
 
         Uses torch.autocast for automatic mixed precision when FP16/BF16.
+        Preserves gradient computation for training (does not use no_grad).
         """
+        # Check if model is in training mode
+        is_training = getattr(model, "training", False)
+
         with self.get_autocast_context():
-            with torch.no_grad():
+            if is_training:
+                # Training mode: preserve gradients
                 return model(*args, **kwargs)
+            else:
+                # Inference mode: disable gradients for speed
+                with torch.no_grad():
+                    return model(*args, **kwargs)
 
     def matmul(self, a, b):
         """Optimized matrix multiplication."""
@@ -155,8 +164,9 @@ def create_optimized_wrapper(
 
     This wrapper:
     1. Uses torch.autocast for FP16/BF16 Tensor Core acceleration
-    2. Disables gradient computation
-    3. Ensures optimal memory layout
+    2. Preserves gradient computation for training
+    3. Disables gradients only for inference (model.training=False)
+    4. Ensures optimal memory layout
 
     Args:
         model: PyTorch model to wrap.
@@ -169,13 +179,16 @@ def create_optimized_wrapper(
     executor = OptimizedExecutor(precision=precision, device=device)
 
     def optimized_forward(*args, **kwargs):
-        """Execute with optimal precision and zero overhead."""
+        """Execute with optimal precision, preserving gradients for training."""
         return executor.execute_model(model, *args, **kwargs)
 
     # Copy model attributes for compatibility
     optimized_forward.__name__ = getattr(model, "__name__", "optimized_model")
     optimized_forward._zenith_executor = executor
     optimized_forward._zenith_precision = precision
+
+    # Preserve training attribute access
+    optimized_forward.training = getattr(model, "training", False)
 
     return optimized_forward
 
