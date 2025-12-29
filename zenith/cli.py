@@ -17,7 +17,7 @@ def main():
     """Main entry point for Zenith CLI."""
     parser = argparse.ArgumentParser(
         prog="zenith",
-        description="Zenith - Cross-Platform ML Optimization Framework",
+        description="Zenith - ML Optimization Toolkit",
     )
 
     parser.add_argument(
@@ -33,6 +33,37 @@ def main():
         help="Show system information",
     )
 
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    # Dashboard command
+    dashboard_parser = subparsers.add_parser(
+        "dashboard",
+        help="Start terminal monitoring dashboard",
+    )
+    dashboard_parser.add_argument(
+        "--refresh",
+        type=float,
+        default=1.0,
+        help="Refresh rate in seconds (default: 1.0)",
+    )
+
+    # Serve command
+    serve_parser = subparsers.add_parser(
+        "serve",
+        help="Start metrics HTTP server",
+    )
+    serve_parser.add_argument(
+        "--host",
+        default="0.0.0.0",
+        help="Host to bind to (default: 0.0.0.0)",
+    )
+    serve_parser.add_argument(
+        "--port",
+        type=int,
+        default=8080,
+        help="Port to bind to (default: 8080)",
+    )
+
     args = parser.parse_args()
 
     if args.version:
@@ -45,9 +76,45 @@ def main():
         _show_info()
         return 0
 
+    if args.command == "dashboard":
+        return _run_dashboard(args)
+
+    if args.command == "serve":
+        return _run_serve(args)
+
     # Default: show help
     parser.print_help()
     return 0
+
+
+def _run_dashboard(args):
+    """Run the terminal dashboard."""
+    try:
+        from zenith.monitoring.dashboard import run_dashboard
+
+        run_dashboard(refresh_rate=args.refresh)
+        return 0
+    except ImportError as e:
+        print(f"Error: {e}")
+        print("Install Rich with: pip install rich")
+        return 1
+    except KeyboardInterrupt:
+        return 0
+
+
+def _run_serve(args):
+    """Run the metrics HTTP server."""
+    try:
+        from zenith.monitoring import start_server
+
+        start_server(host=args.host, port=args.port)
+        return 0
+    except ImportError as e:
+        print(f"Error: {e}")
+        print("Install FastAPI with: pip install fastapi uvicorn")
+        return 1
+    except KeyboardInterrupt:
+        return 0
 
 
 def _show_info():
