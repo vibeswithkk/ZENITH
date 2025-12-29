@@ -21,8 +21,10 @@ logger = logging.getLogger("zenith.optimization.fx_patterns")
 
 # Check for torch availability
 _HAS_TORCH = False
+_HAS_ZENITH_CUDA = False
 torch = None
 F = None
+zenith_cuda = None
 
 try:
     import torch as _torch
@@ -33,6 +35,28 @@ try:
     _HAS_TORCH = True
 except ImportError:
     pass
+
+# Check for Zenith CUDA kernels (JIT compiled)
+try:
+    from torch.utils.cpp_extension import load
+    import os
+
+    # Try to import pre-compiled zenith_cuda module
+    try:
+        import zenith_cuda as _zenith_cuda
+
+        zenith_cuda = _zenith_cuda
+        _HAS_ZENITH_CUDA = True
+        logger.info("Zenith CUDA kernels loaded")
+    except ImportError:
+        pass
+except ImportError:
+    pass
+
+
+def is_zenith_cuda_available() -> bool:
+    """Check if Zenith CUDA kernels are available."""
+    return _HAS_ZENITH_CUDA
 
 
 @dataclass
@@ -73,14 +97,22 @@ def sdpa_pattern(q, k, v):
 
 def zenith_sdpa_replacement(q, k, v):
     """
-    Replacement using PyTorch's optimized SDPA (which uses FlashAttention).
+    Replacement using Zenith CUDA kernel or PyTorch's optimized SDPA.
 
-    This is a validated replacement that:
-    1. Uses PyTorch's F.scaled_dot_product_attention
-    2. Automatically enables FlashAttention when available
-    3. Falls back gracefully on unsupported hardware
+    Priority:
+    1. Zenith CUDA flash_attention kernel (if available and compiled)
+    2. PyTorch's F.scaled_dot_product_attention (FlashAttention backend)
     """
     _check_torch_available()
+
+    # Try Zenith CUDA kernel first
+    if _HAS_ZENITH_CUDA and zenith_cuda is not None:
+        try:
+            # Zenith expects [batch, heads, seq, dim] format
+            return zenith_cuda.flash_attention(q, k, v)
+        except Exception:
+            pass  # Fallback to PyTorch SDPA
+
     # PyTorch 2.0+ SDPA with automatic FlashAttention
     return F.scaled_dot_product_attention(q, k, v, is_causal=False)
 
