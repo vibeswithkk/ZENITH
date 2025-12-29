@@ -37,10 +37,14 @@ def train_step(params, x, y):
 
 ## Memory Savings
 
-| Model Size | Without Checkpointing | With Checkpointing |
-|------------|----------------------|-------------------|
-| 1B params  | 16 GB                | 6 GB              |
-| 7B params  | 112 GB               | 40 GB             |
+Gradient checkpointing typically reduces memory usage by trading off compute time:
+
+| Approach | Memory Usage | Compute Overhead |
+|----------|--------------|------------------|
+| Standard (no checkpointing) | Full activation storage | None |
+| Checkpointing | ~30-60% reduction | ~20-30% slower |
+
+> **Note:** Actual memory savings depend on model architecture, batch size, and sequence length. Run your own benchmarks to measure the impact on your specific workload.
 
 ## API Reference
 
