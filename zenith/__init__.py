@@ -98,6 +98,9 @@ from .monitoring import (
     PrometheusExporter,
 )
 
+# TorchDynamo Integration (auto-registers 'zenith' backend for torch.compile)
+from . import integrations  # noqa: F401
+
 
 def is_native() -> bool:
     """Check if native C++ bindings are available."""
