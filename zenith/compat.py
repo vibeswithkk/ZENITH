@@ -15,12 +15,14 @@ Usage:
 """
 
 import functools
+import re
+import threading
 import warnings
 from dataclasses import dataclass
 from typing import Optional, Callable, Any
 
 
-@dataclass
+@dataclass(frozen=True)
 class VersionInfo:
     """
     Semantic version representation.
@@ -43,18 +45,32 @@ class VersionInfo:
         Parse version string to VersionInfo.
 
         Args:
-            version_str: Version string like "0.3.0" or "1.2.3"
+            version_str: Version string like "0.3.0", "1.2.3", or "2.1.0+cpu"
 
         Returns:
             VersionInfo instance
+
+        Raises:
+            ValueError: If version string is invalid
         """
-        parts = version_str.split(".")
+        if not version_str or not isinstance(version_str, str):
+            raise ValueError(f"Invalid version string: {version_str}")
+
+        # Remove common suffixes like +cpu, +cuda, .dev0, etc.
+        clean_version = re.split(r"[+\-]", version_str)[0]
+        # Also handle .devN, .postN, .rcN suffixes
+        clean_version = re.split(r"\.(dev|post|rc|a|b)\d*", clean_version)[0]
+
+        parts = clean_version.split(".")
         if len(parts) < 2:
             raise ValueError(f"Invalid version string: {version_str}")
 
-        major = int(parts[0])
-        minor = int(parts[1])
-        patch = int(parts[2]) if len(parts) > 2 else 0
+        try:
+            major = int(parts[0])
+            minor = int(parts[1])
+            patch = int(parts[2]) if len(parts) > 2 else 0
+        except ValueError as e:
+            raise ValueError(f"Invalid version string: {version_str}") from e
 
         return cls(major=major, minor=minor, patch=patch)
 
@@ -228,8 +244,9 @@ def check_version_compatibility(
     return True
 
 
-# Registry of deprecated features for documentation
+# Thread-safe registry of deprecated features for documentation
 _DEPRECATION_REGISTRY: list[dict] = []
+_REGISTRY_LOCK = threading.Lock()
 
 
 def register_deprecation(
@@ -249,20 +266,22 @@ def register_deprecation(
         reason: Why it was deprecated
         alternative: Suggested alternative
     """
-    _DEPRECATION_REGISTRY.append(
-        {
-            "name": name,
-            "since": since,
-            "removal": removal,
-            "reason": reason,
-            "alternative": alternative,
-        }
-    )
+    with _REGISTRY_LOCK:
+        _DEPRECATION_REGISTRY.append(
+            {
+                "name": name,
+                "since": since,
+                "removal": removal,
+                "reason": reason,
+                "alternative": alternative,
+            }
+        )
 
 
 def get_deprecation_list() -> list[dict]:
-    """Get list of all registered deprecations."""
-    return _DEPRECATION_REGISTRY.copy()
+    """Get list of all registered deprecations (thread-safe copy)."""
+    with _REGISTRY_LOCK:
+        return _DEPRECATION_REGISTRY.copy()
 
 
 def print_deprecation_report() -> None:
