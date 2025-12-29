@@ -287,12 +287,24 @@ else:
         return model(*args, **kwargs)
 ```
 
+### Screenshots (Visual Proof)
+
+**Benchmark Running:**
+![Benchmark Run Start](assets/benchmark_screenshots/benchmark_run_start.png)
+
+**PyTorch Baseline Results:**
+![PyTorch Baseline](assets/benchmark_screenshots/pytorch_baseline.png)
+
+**Zenith Backend Results:**
+![Zenith Backend](assets/benchmark_screenshots/zenith_backend.png)
+
 ### Technical Notes
 
 - Zenith Version: 0.2.10
 - Integration via `torch.compile(model, backend="zenith")`
 - Auto-registration: `import zenith` automatically registers backend
 - Training gradients preserved, autocast active for Tensor Core acceleration
+
 
 ---
 
