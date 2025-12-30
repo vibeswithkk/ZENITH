@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/zenith-logo.png" alt="Zenith Logo" width="300"/>
+  <img src="assets/zenith-logo.png" alt="Zenith Logo" width="450"/>
 </p>
 
 # Zenith
