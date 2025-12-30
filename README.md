@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/zenith-logo.png" alt="Zenith Logo" width="300"/>
+</p>
+
 # Zenith
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
