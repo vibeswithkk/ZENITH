@@ -103,8 +103,7 @@ jobs:
       
       - name: Install dependencies
         run: |
-          pip install hypothesis pytest
-          pip install -e . || pip install .
+          pip install -e ".[dev]"
       
       - name: Run fuzzing tests
         run: |

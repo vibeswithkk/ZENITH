@@ -115,6 +115,18 @@ pytest tests/test_quantization.py -v
 pytest tests/ --cov=zenith --cov-report=html
 ```
 
+### Security Testing
+
+Zenith prioritizes security. We use **Bandit** for Static Application Security Testing (SAST) and **Hypothesis** for property-based fuzzing.
+
+```bash
+# Run Fuzzing Tests (Property-Based)
+pytest security/fuzz_tests.py -v --hypothesis-show-statistics
+
+# Run Static Security Analysis
+bandit -r zenith/ -nn -ii
+```
+
 ### Writing Tests
 
 - Place tests in `tests/` directory
