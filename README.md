@@ -13,15 +13,15 @@
 [![CI](https://github.com/vibeswithkk/ZENITH/actions/workflows/ci.yml/badge.svg)](https://github.com/vibeswithkk/ZENITH/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/Tests-942+-success.svg)](#)
 
-**ML Optimization Toolkit**
+**A Humble ML Inference Optimizer**
 
-Zenith is an open-source project that provides optimization utilities for PyTorch, JAX, and TensorFlow. Built as a hobby project with care, it includes custom CUDA kernels, operator fusion, and mixed precision support. While still evolving, it's designed to be practical and usable for real workloads.
+Zenith is a community-driven, open-source project focused on making PyTorch inference faster and more energy-efficient. Built with care as a learning journey, it is designed to complement your existing ML workflow.
 
 ## Project History
 
-Zenith was conceived and architecturally designed on **December 11, 2024**, with the creation of its comprehensive blueprint document (CetakBiru.md) that outlines a 36-month development roadmap across 6 implementation phases. Active development began on **January 12, 2025**, and after 11 months of internal development, research, and rigorous testing, Zenith was publicly released on GitHub on **December 16, 2025**.
+Zenith was conceived and architecturally designed on **December 11, 2024**, with the creation of its comprehensive blueprint document (CetakBiru.md) that outlines a 36-month development roadmap across 6 implementation phases. Active development began on **January 12, 2025**, and after months of internal development, research, and rigorous testing, Zenith was publicly released on GitHub on **December 16, 2025**.
 
-This project represents nearly a year of hobby development, learning CUDA programming, and experimenting with ML optimization techniques. It's still a work in progress!
+This project represents months of hobby development, learning CUDA programming, and experimenting with ML optimization techniques. It is still a work in progress.
 
 ---
 
@@ -87,6 +87,23 @@ python zenith/build_cuda.py
 import zenith_cuda
 C = zenith_cuda.wmma_matmul(A.half(), B.half())  # Tensor Core accelerated
 ```
+
+---
+
+## When to Use Zenith (And When Not To)
+
+### Zenith Shines At:
+- **Inference on large models** (LLMs, Vision Transformers with 100M+ params)
+- **Production deployment** where every millisecond counts
+- **Energy-conscious applications** (edge devices, green computing)
+- **PyTorch 2.0+ torch.compile integration**
+
+### Zenith May Not Help With:
+- **Training** (focus is on inference, not backward passes)
+- **Small/simple models** (ConvNets, MLPs under 10M params - overhead may exceed benefit)
+- **Research/experimentation** (use eager mode for debugging)
+
+**Honest Assessment:** Zenith adds value when your model is large enough that graph optimization overhead is worthwhile. For small models, native PyTorch is often faster.
 
 ---
 
@@ -231,10 +248,16 @@ optimized_model = torch.compile(model, backend="zenith")
 output = optimized_model(input_tensor)
 ```
 
-**Benchmark Results (TinyLlama 1.1B fine-tuning):**
-- Training speedup: **+7.92%**
-- No memory overhead
-- Numerical accuracy preserved
+**Benchmark Results (TinyLlama 1.1B on Tesla T4):**
+
+| Use Case | Improvement | Notes |
+|----------|-------------|-------|
+| Inference (TPS) | **+69%** | Text generation workloads |
+| Training (SFT) | +2.6% | Minimal - Zenith focuses on inference |
+| Energy Consumption | **-87%** | Faster completion = less total energy |
+| Numerical Precision | 0.000 MSE | Perfect accuracy preserved |
+
+*See [Zenith-Lab](https://github.com/vibeswithkk/Zenith-Lab) for reproducible benchmarks.*
 
 ---
 
@@ -330,6 +353,26 @@ Zenith is currently in active development with the following milestones complete
 
 ---
 
+## Limitations & Transparency
+
+We believe in being honest about what Zenith can and cannot do:
+
+| Claim | Reality |
+|-------|---------|
+| "Works on all models" | Best on large models (100M+ params) |
+| "Training acceleration" | Minimal (+2.6%). Zenith is for inference. |
+| "Production-ready" | Alpha quality. Test thoroughly before production use. |
+| "AMD/Intel GPU support" | Experimental. Only NVIDIA verified. |
+
+### Known Issues
+- Compilation overhead on first call (typically 0.5-2s)
+- Small models may run slower than native PyTorch
+- Some dynamic control flow patterns not yet supported
+
+We are a small open-source project learning and improving. Bug reports and contributions are appreciated.
+
+---
+
 ## Contributing
 
 Contributions are welcome. Please ensure all tests pass before submitting pull requests.
@@ -344,9 +387,16 @@ pytest tests/python/ -v
 
 ---
 
-## Author
+## Author & Community
 
-**Wahyu Ardiansyah** - Lead Architect and Developer
+**Wahyu Ardiansyah** ([@vibeswithkk](https://github.com/vibeswithkk)) - Creator
+
+This is a hobby project born from curiosity about ML optimization. Special thanks to everyone who has tested, reported bugs, and contributed. If you find this useful, consider:
+
+- Starring the repo
+- Reporting issues you encounter
+- Sharing ideas for improvement
+- [Supporting development](https://trakteer.id/wahyuardiansyah)
 
 ## License
 
