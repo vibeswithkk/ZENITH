@@ -15,7 +15,7 @@
 
 **A Simple ML Inference Optimizer**
 
-Zenith is an open-source project focused on improving the speed and energy efficiency of PyTorch, JAX, and TensorFlow inference. It was carefully built as a bridge. Zenith is designed to complement your existing ML workflow, not replace it.
+Zenith is an open-source project focused on improving the speed of PyTorch, JAX, and TensorFlow inference. Faster inference means less total energy consumption. It was carefully built as a bridge. Zenith is designed to complement your existing ML workflow, not replace it.
 
 ## Project History
 
@@ -95,7 +95,7 @@ C = zenith_cuda.wmma_matmul(A.half(), B.half())  # Tensor Core accelerated
 ### Zenith Shines At:
 - **Inference on large models** (LLMs, Vision Transformers with 100M+ params)
 - **Production deployment** where every millisecond counts
-- **Energy-conscious applications** (edge devices, green computing)
+- **Cost-conscious applications** (faster = less compute time = lower bills)
 - **PyTorch 2.0+ torch.compile integration**
 
 ### Zenith May Not Help With:
