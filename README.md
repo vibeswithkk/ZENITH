@@ -13,9 +13,9 @@
 [![CI](https://github.com/vibeswithkk/ZENITH/actions/workflows/ci.yml/badge.svg)](https://github.com/vibeswithkk/ZENITH/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/Tests-942+-success.svg)](#)
 
-**A Humble ML Inference Optimizer**
+**A Simple ML Inference Optimizer**
 
-Zenith is a community-driven, open-source project focused on making PyTorch inference faster and more energy-efficient. Built with care as a learning journey, it is designed to complement your existing ML workflow.
+Zenith is an open-source project focused on improving the speed and energy efficiency of PyTorch, JAX, and TensorFlow inference. It was carefully built as a bridge. Zenith is designed to complement your existing ML workflow, not replace it.
 
 ## Project History
 
