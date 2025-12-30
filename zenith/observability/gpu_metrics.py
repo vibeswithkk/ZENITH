@@ -16,9 +16,9 @@ Example:
         print(f"Memory Used: {stats['memory_used_mb']} MB")
 """
 
-from dataclasses import dataclass
-from typing import Optional, Dict, Any
 import threading
+from dataclasses import dataclass
+from typing import Any, Optional
 
 # Attempt to import pynvml, gracefully handle if not available
 try:
@@ -57,7 +57,7 @@ class GPUStats:
     power_draw_watts: Optional[float] = None
     power_limit_watts: Optional[float] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             "device_index": self.device_index,
@@ -108,7 +108,7 @@ class GPUMetricsCollector:
 
         self._available = False
         self._device_count = 0
-        self._handles: Dict[int, Any] = {}
+        self._handles: dict[int, Any] = {}
 
         if PYNVML_AVAILABLE:
             try:
@@ -211,7 +211,7 @@ class GPUMetricsCollector:
         except Exception:
             return None
 
-    def get_all_stats(self) -> Dict[int, GPUStats]:
+    def get_all_stats(self) -> dict[int, GPUStats]:
         """
         Get statistics for all available GPU devices.
 
@@ -238,7 +238,7 @@ def is_available() -> bool:
     return _collector.is_available()
 
 
-def get_current(device_index: int = 0) -> Optional[Dict[str, Any]]:
+def get_current(device_index: int = 0) -> Optional[dict[str, Any]]:
     """
     Get current GPU metrics as dictionary.
 
@@ -256,7 +256,7 @@ def get_current(device_index: int = 0) -> Optional[Dict[str, Any]]:
     return stats.to_dict() if stats else None
 
 
-def get_memory_info(device_index: int = 0) -> Optional[Dict[str, float]]:
+def get_memory_info(device_index: int = 0) -> Optional[dict[str, float]]:
     """
     Get GPU memory information.
 

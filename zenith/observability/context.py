@@ -24,10 +24,11 @@ Example:
 
 import threading
 import uuid
+from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any, Generator
 from datetime import datetime
+from typing import Any, Optional
 
 
 @dataclass
@@ -49,9 +50,9 @@ class RequestContext:
     span_id: Optional[str] = None
     parent_span_id: Optional[str] = None
     start_time: str = field(default_factory=lambda: datetime.now().isoformat())
-    attributes: Dict[str, Any] = field(default_factory=dict)
+    attributes: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert context to dictionary."""
         return {
             "correlation_id": self.correlation_id,
@@ -139,7 +140,7 @@ class ContextManager:
         """Set a context attribute."""
         self._get_context().attributes[key] = value
 
-    def get_all_attributes(self) -> Dict[str, Any]:
+    def get_all_attributes(self) -> dict[str, Any]:
         """Get all context attributes."""
         return self._get_context().attributes.copy()
 

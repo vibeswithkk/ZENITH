@@ -17,11 +17,11 @@ Example:
     events.emit("model.compiled", model_name="bert", duration_ms=1500)
 """
 
+import fnmatch
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Callable, Dict, List, Any, Optional
-import threading
-import fnmatch
+from typing import Any, Callable, Optional
 
 
 @dataclass
@@ -38,10 +38,10 @@ class Event:
 
     name: str
     timestamp: str
-    data: Dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = field(default_factory=dict)
     correlation_id: Optional[str] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert event to dictionary for serialization."""
         return {
             "name": self.name,
@@ -79,9 +79,9 @@ class EventEmitter:
 
     def __init__(self):
         """Initialize event emitter."""
-        self._handlers: Dict[str, List[EventHandler]] = {}
+        self._handlers: dict[str, list[EventHandler]] = {}
         self._lock = threading.RLock()
-        self._history: List[Event] = []
+        self._history: list[Event] = []
         self._history_limit = 1000
         self._record_history = False
 
@@ -157,7 +157,7 @@ class EventEmitter:
             try:
                 handler(event)
             except Exception:
-                # Silently ignore handler errors to prevent event cascade failures
+                # Silently ignore handler errors
                 pass
 
         return event
@@ -181,7 +181,7 @@ class EventEmitter:
 
     def get_history(
         self, pattern: Optional[str] = None, limit: Optional[int] = None
-    ) -> List[Event]:
+    ) -> list[Event]:
         """
         Get recorded event history.
 
@@ -254,7 +254,7 @@ def disable_history() -> None:
 
 def get_history(
     pattern: Optional[str] = None, limit: Optional[int] = None
-) -> List[Event]:
+) -> list[Event]:
     """Get recorded event history."""
     return _get_emitter().get_history(pattern, limit)
 
