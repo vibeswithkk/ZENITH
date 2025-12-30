@@ -60,6 +60,9 @@ jax = [
 all = [
     "pyzenith[onnx,pytorch,tensorflow,jax]",
 ]
+monitoring = [
+    "pynvml>=11.0.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
@@ -68,6 +71,7 @@ dev = [
     "mypy>=1.0.0",
     "ruff>=0.1.0",
     "hypothesis>=6.0.0",
+    "pynvml>=11.0.0",
 ]
 
 [project.urls]
