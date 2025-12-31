@@ -1,6 +1,6 @@
 # Zenith API Reference
 
-**Version:** 0.1.4  
+**Version:** 0.3.0  
 **Author:** Wahyu Ardiansyah  
 **License:** Apache License 2.0
 
@@ -33,13 +33,17 @@
    - [ConstantFoldingPass](#constantfoldingpass)
    - [DeadCodeEliminationPass](#deadcodeeliminationpass)
    - [OperatorFusionPass](#operatorfusionpass)
-7. [Execution Engine](#execution-engine)
+7. [Observability](#observability)
+   - [GPU Metrics](#gpu-metrics)
+   - [Event System](#event-system)
+   - [Request Context](#request-context)
+8. [Execution Engine](#execution-engine)
    - [ONNXInterpreter](#onnxinterpreter)
    - [ExecutionContext](#executioncontext)
-8. [Utility Functions](#utility-functions)
-9. [Constants and Enumerations](#constants-and-enumerations)
-10. [Error Handling](#error-handling)
-11. [Examples](#examples)
+9. [Utility Functions](#utility-functions)
+10. [Constants and Enumerations](#constants-and-enumerations)
+11. [Error Handling](#error-handling)
+12. [Examples](#examples)
 
 ---
 
@@ -1068,6 +1072,125 @@ Combines sequences of operations into single fused operations to reduce memory b
 | bn_relu | BatchNormalization, Relu | BnRelu |
 | matmul_add | MatMul, Add | Gemm |
 | conv_bn | Conv, BatchNormalization | ConvBn |
+
+---
+
+## Observability
+
+Zenith provides production-ready observability features for monitoring, debugging, and tracing ML workloads.
+
+### GPU Metrics
+
+Monitor GPU utilization, memory, temperature, and power in real-time.
+
+**Installation:**
+
+```bash
+pip install pyzenith[monitoring]  # Includes pynvml
+```
+
+**Usage:**
+
+```python
+from zenith.observability import gpu_metrics
+
+if gpu_metrics.is_available():
+    stats = gpu_metrics.get_current()
+    print(f"GPU: {stats['name']}")
+    print(f"Utilization: {stats['utilization_percent']}%")
+    print(f"Memory: {stats['memory_used_mb']}/{stats['memory_total_mb']} MB")
+    print(f"Temperature: {stats['temperature_celsius']}C")
+    print(f"Power: {stats['power_draw_watts']}W")
+```
+
+**Functions:**
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `is_available()` | `bool` | Check if GPU metrics available |
+| `get_current(device_index=0)` | `dict` | Get all GPU stats |
+| `get_memory_info(device_index=0)` | `dict` | Get memory usage |
+| `get_utilization(device_index=0)` | `float` | Get core utilization % |
+
+---
+
+### Event System
+
+Track and react to system events such as model compilation, inference, and errors.
+
+**Usage:**
+
+```python
+from zenith.observability import events, EventNames
+
+# Subscribe to events
+events.on("model.*", lambda e: print(f"Event: {e.name}"))
+
+# Emit events
+events.emit("model.compiled", model_name="bert", duration_ms=1500)
+
+# Event history
+events.enable_history(limit=1000)
+history = events.get_history(pattern="model.*")
+```
+
+**Functions:**
+
+| Function | Description |
+|----------|-------------|
+| `on(pattern, handler)` | Subscribe to events matching pattern |
+| `off(pattern, handler)` | Unsubscribe from events |
+| `emit(name, **data)` | Emit an event |
+| `enable_history(limit)` | Enable event recording |
+| `get_history(pattern, limit)` | Get recorded events |
+| `clear()` | Clear handlers and history |
+
+**Pre-defined Event Names:**
+
+| Constant | Value |
+|----------|-------|
+| `EventNames.MODEL_COMPILED` | `"model.compiled"` |
+| `EventNames.INFERENCE_COMPLETED` | `"inference.completed"` |
+| `EventNames.MEMORY_WARNING` | `"memory.warning"` |
+| `EventNames.ERROR_OCCURRED` | `"error.occurred"` |
+
+---
+
+### Request Context
+
+Correlation IDs and request-scoped context for tracing distributed operations.
+
+**Usage:**
+
+```python
+from zenith.observability import context
+
+# Auto-generated correlation ID
+cid = context.get_correlation_id()  # e.g., "a1b2c3d4"
+
+# Custom correlation ID
+context.set_correlation_id("my-request-123")
+
+# Context scopes
+with context.new_context(correlation_id="batch-001"):
+    # All operations share this correlation ID
+    pass
+
+# Span tracking
+with context.span("compile", model="bert"):
+    # Nested operation tracking
+    pass
+```
+
+**Functions:**
+
+| Function | Description |
+|----------|-------------|
+| `get_correlation_id()` | Get current correlation ID |
+| `set_correlation_id(id)` | Set custom correlation ID |
+| `new_context(correlation_id)` | Create isolated context scope |
+| `span(name, **attributes)` | Create tracing span |
+| `clear()` | Clear current context |
 
 ---
 
