@@ -71,46 +71,44 @@ def get_version() -> Optional[str]:
 
 if _HAS_TRITON:
     # T4 has 40 SMs, 64KB shared memory per SM
-    # Optimal configs discovered through extensive testing
+    # L2 Cache Optimization: GROUP_SIZE_M controls block grouping for cache locality
     @triton.autotune(
         configs=[
-            # Small matrices - minimize overhead
+            # GROUP_SIZE_M=8 is optimal for most cases (from Triton tutorial)
             triton.Config(
-                {"BLOCK_M": 16, "BLOCK_N": 16, "BLOCK_K": 16}, num_warps=2, num_stages=1
+                {"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32, "GROUP_SIZE_M": 8},
+                num_warps=4,
+                num_stages=2,
             ),
             triton.Config(
-                {"BLOCK_M": 16, "BLOCK_N": 32, "BLOCK_K": 32}, num_warps=2, num_stages=2
-            ),
-            # Medium matrices - balanced
-            triton.Config(
-                {"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32}, num_warps=4, num_stages=2
+                {"BLOCK_M": 64, "BLOCK_N": 64, "BLOCK_K": 32, "GROUP_SIZE_M": 8},
+                num_warps=4,
+                num_stages=3,
             ),
             triton.Config(
-                {"BLOCK_M": 32, "BLOCK_N": 64, "BLOCK_K": 32}, num_warps=4, num_stages=2
-            ),
-            triton.Config(
-                {"BLOCK_M": 64, "BLOCK_N": 32, "BLOCK_K": 32}, num_warps=4, num_stages=2
-            ),
-            # Large matrices - maximize throughput
-            triton.Config(
-                {"BLOCK_M": 64, "BLOCK_N": 64, "BLOCK_K": 32}, num_warps=4, num_stages=3
-            ),
-            triton.Config(
-                {"BLOCK_M": 64, "BLOCK_N": 64, "BLOCK_K": 64}, num_warps=4, num_stages=2
-            ),
-            triton.Config(
-                {"BLOCK_M": 128, "BLOCK_N": 64, "BLOCK_K": 32},
+                {"BLOCK_M": 128, "BLOCK_N": 64, "BLOCK_K": 32, "GROUP_SIZE_M": 8},
                 num_warps=8,
                 num_stages=3,
             ),
             triton.Config(
-                {"BLOCK_M": 64, "BLOCK_N": 128, "BLOCK_K": 32},
+                {"BLOCK_M": 64, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 8},
                 num_warps=8,
                 num_stages=3,
             ),
             triton.Config(
-                {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 32},
+                {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 8},
                 num_warps=8,
+                num_stages=2,
+            ),
+            # Smaller GROUP_SIZE for smaller matrices
+            triton.Config(
+                {"BLOCK_M": 32, "BLOCK_N": 64, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
+                num_warps=4,
+                num_stages=2,
+            ),
+            triton.Config(
+                {"BLOCK_M": 64, "BLOCK_N": 32, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
+                num_warps=4,
                 num_stages=2,
             ),
         ],
@@ -135,57 +133,73 @@ if _HAS_TRITON:
         BLOCK_M: tl.constexpr,
         BLOCK_N: tl.constexpr,
         BLOCK_K: tl.constexpr,
+        GROUP_SIZE_M: tl.constexpr,
     ):
         """
-        Fused Linear + GELU kernel.
+        Fused Linear + GELU kernel with L2 cache optimization.
 
-        Computes: GELU(X @ W.T + bias)
-
-        Instead of:
-        1. tmp = X @ W.T (memory write)
-        2. tmp = tmp + bias (memory read + write)
-        3. out = gelu(tmp) (memory read + write)
-
-        We do everything in one pass with data in registers.
+        Key optimization: Group-based program ID ordering
+        This reorders how blocks are processed to improve L2 cache locality.
+        Blocks in the same group access adjacent memory regions.
         """
-        pid_m = tl.program_id(0)
-        pid_n = tl.program_id(1)
+        # L2 Cache Optimization: Group-based program ordering
+        # Instead of naive (pid % num_n, pid // num_n), we group blocks
+        # to improve L2 cache hit rate
+        pid = tl.program_id(0)
+        num_pid_m = tl.cdiv(M, BLOCK_M)
+        num_pid_n = tl.cdiv(N, BLOCK_N)
+        num_pid_in_group = GROUP_SIZE_M * num_pid_n
+        group_id = pid // num_pid_in_group
+        first_pid_m = group_id * GROUP_SIZE_M
+        group_size_m = min(num_pid_m - first_pid_m, GROUP_SIZE_M)
+        pid_m = first_pid_m + ((pid % num_pid_in_group) % group_size_m)
+        pid_n = (pid % num_pid_in_group) // group_size_m
 
         offs_m = pid_m * BLOCK_M + tl.arange(0, BLOCK_M)
         offs_n = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
         offs_k = tl.arange(0, BLOCK_K)
 
+        # Initialize accumulator in higher precision
         acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
 
+        # Pointer arithmetic for strided access
+        x_block_ptr = x_ptr + offs_m[:, None] * stride_xm
+        w_block_ptr = w_ptr + offs_n[None, :] * stride_wn
+
+        # Main matmul loop with K tiling
         for k in range(0, K, BLOCK_K):
             k_offs = k + offs_k
 
-            x_ptrs = x_ptr + offs_m[:, None] * stride_xm + k_offs[None, :] * stride_xk
-            w_ptrs = w_ptr + k_offs[:, None] * stride_wk + offs_n[None, :] * stride_wn
+            x_ptrs = x_block_ptr + k_offs[None, :] * stride_xk
+            w_ptrs = w_block_ptr + k_offs[:, None] * stride_wk
 
-            mask_m = offs_m[:, None] < M
-            mask_k = k_offs[None, :] < K
-            mask_n = offs_n[None, :] < N
+            # Masked loads with boundary checks
+            x = tl.load(
+                x_ptrs, mask=(offs_m[:, None] < M) & (k_offs[None, :] < K), other=0.0
+            )
+            w = tl.load(
+                w_ptrs, mask=(k_offs[:, None] < K) & (offs_n[None, :] < N), other=0.0
+            )
 
-            x = tl.load(x_ptrs, mask=mask_m & mask_k, other=0.0)
-            w = tl.load(w_ptrs, mask=(k_offs[:, None] < K) & mask_n, other=0.0)
-
+            # Accumulate with tensor core operations
             acc += tl.dot(x, w)
 
+        # Add bias if present
         if HAS_BIAS:
             b = tl.load(b_ptr + offs_n, mask=offs_n < N, other=0.0)
             acc = acc + b[None, :]
 
-        # GELU approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
-        # Using sigmoid-based tanh: tanh(x) = 2*sigmoid(2x) - 1
+        # Fused GELU activation (no extra memory access)
+        # GELU(x) = 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
+        # Using sigmoid: tanh(x) = 2*sigmoid(2x) - 1
         SQRT_2_OVER_PI = 0.7978845608028654
         x = acc
         x3 = x * x * x
         inner = SQRT_2_OVER_PI * (x + 0.044715 * x3)
-        # tanh via sigmoid: tanh(x) = 2 * sigmoid(2x) - 1
-        tanh_approx = 2.0 * tl.sigmoid(2.0 * inner) - 1.0
-        out = 0.5 * x * (1.0 + tanh_approx)
+        tanh_val = 2.0 * tl.sigmoid(2.0 * inner) - 1.0
+        out = 0.5 * x * (1.0 + tanh_val)
 
+        # Store result with boundary mask
         out_ptrs = (
             out_ptr + offs_m[:, None] * stride_outm + offs_n[None, :] * stride_outn
         )
@@ -281,7 +295,7 @@ def fused_linear_gelu(
     bias: Optional["torch.Tensor"] = None,
 ) -> "torch.Tensor":
     """
-    Fused Linear + GELU operation.
+    Fused Linear + GELU operation with L2 cache optimization.
 
     Computes: GELU(x @ weight.T + bias)
 
@@ -301,14 +315,14 @@ def fused_linear_gelu(
 
     M, K = x.shape
     N, K_w = weight.shape
-    assert K == K_w, f"Dimension mismatch: x has {K} cols, weight has {K_w} rows"
+    assert K == K_w, f"Dimension mismatch: {K} vs {K_w}"
 
     out = torch.empty((M, N), device=x.device, dtype=x.dtype)
 
-    grid = lambda meta: (
-        triton.cdiv(M, meta["BLOCK_M"]),
-        triton.cdiv(N, meta["BLOCK_N"]),
-    )
+    # 1D grid for L2 cache optimization
+    # Total blocks = ceil(M/BLOCK_M) * ceil(N/BLOCK_N)
+    def grid(meta):
+        return (triton.cdiv(M, meta["BLOCK_M"]) * triton.cdiv(N, meta["BLOCK_N"]),)
 
     _fused_linear_gelu_kernel[grid](
         x,
