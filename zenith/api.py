@@ -100,8 +100,19 @@ def optimize(model: Any, **kwargs) -> Any:
     """
     Alias for compile().
 
-    Provided for convenience and API compatibility.
+    .. deprecated:: 0.3.0
+        Use :func:`compile` instead. This function will be removed in v1.0.0.
+
+    Provided for backward compatibility only.
     """
+    import warnings
+
+    warnings.warn(
+        "zenith.optimize() is deprecated and will be removed in v1.0.0. "
+        "Use zenith.compile() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return compile(model, **kwargs)
 
 
