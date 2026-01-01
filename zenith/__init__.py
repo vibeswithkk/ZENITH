@@ -15,7 +15,7 @@ Example:
     optimized = zenith.compile(model, target="cuda", precision="fp16")
 """
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 __author__ = "Wahyu Ardiansyah"
 
 # Try to import native bindings if available
