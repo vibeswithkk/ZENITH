@@ -235,9 +235,11 @@ class ExecutionContext:
             return data, False
 
         # Try to convert to numpy
+        # ValueError: data cannot form valid array structure
+        # TypeError: data type is not convertible to numpy array
         try:
             return np.asarray(data), False
-        except:
+        except (ValueError, TypeError):
             return data, False
 
     def _estimate_memory(self, data: Any) -> int:
@@ -248,10 +250,12 @@ class ExecutionContext:
             return data.numel() * data.element_size()
         if hasattr(data, "shape") and hasattr(data, "dtype"):
             shape = data.shape
+            # TypeError: invalid dtype specification
+            # ValueError: invalid shape for np.prod computation
             try:
                 itemsize = np.dtype(data.dtype).itemsize
                 return int(np.prod(shape)) * itemsize
-            except:
+            except (TypeError, ValueError):
                 pass
         return 0
 
