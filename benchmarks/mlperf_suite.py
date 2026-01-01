@@ -22,6 +22,8 @@ from typing import Any, Callable, Optional
 from enum import Enum
 import time
 import logging
+import json
+from pathlib import Path
 import numpy as np
 
 logger = logging.getLogger("zenith.benchmarks")
@@ -71,6 +73,7 @@ class BenchmarkConfig:
     precision: str = "fp32"
     target_latency_ms: float = 100.0
     target_qps: float = 10.0
+    device_ids: list = field(default_factory=lambda: [0])
 
     def validate(self) -> None:
         """Validate configuration parameters."""
@@ -655,3 +658,210 @@ def compare_results(
         lines.append(line)
 
     return "\n".join(lines)
+
+
+def export_results_json(
+    results: list,
+    filepath: str,
+    include_metadata: bool = True,
+) -> None:
+    """
+    Export benchmark results to JSON file.
+
+    Args:
+        results: List of BenchmarkResult objects.
+        filepath: Output file path.
+        include_metadata: Whether to include timestamp and version info.
+    """
+    output = {
+        "results": [r.to_dict() for r in results],
+    }
+
+    if include_metadata:
+        import datetime
+
+        output["metadata"] = {
+            "exported_at": datetime.datetime.now().isoformat(),
+            "zenith_version": _get_zenith_version(),
+            "num_results": len(results),
+        }
+
+    path = Path(filepath)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(output, f, indent=2)
+
+    logger.info(f"Exported {len(results)} results to {filepath}")
+
+
+def load_results_json(filepath: str) -> list:
+    """
+    Load benchmark results from JSON file.
+
+    Args:
+        filepath: Input file path.
+
+    Returns:
+        List of BenchmarkResult objects.
+    """
+    with open(filepath, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    results = []
+    for r in data.get("results", []):
+        result = BenchmarkResult(
+            model_name=r["model_name"],
+            scenario=r["scenario"],
+            batch_size=r["batch_size"],
+            sequence_length=r.get("sequence_length", 0),
+            precision=r.get("precision", "fp32"),
+            latency_mean_ms=r["latency"]["mean_ms"],
+            latency_p50_ms=r["latency"]["p50_ms"],
+            latency_p90_ms=r["latency"]["p90_ms"],
+            latency_p99_ms=r["latency"]["p99_ms"],
+            latency_min_ms=r["latency"]["min_ms"],
+            latency_max_ms=r["latency"]["max_ms"],
+            latency_std_ms=r["latency"]["std_ms"],
+            throughput_qps=r["throughput"]["qps"],
+            throughput_samples_per_sec=r["throughput"]["samples_per_sec"],
+            quality_score=r["quality"]["score"],
+            quality_passed=r["quality"]["passed"],
+            total_samples=r["timing"]["total_samples"],
+            total_time_sec=r["timing"]["total_time_sec"],
+            warmup_time_sec=r["timing"]["warmup_time_sec"],
+        )
+        results.append(result)
+
+    logger.info(f"Loaded {len(results)} results from {filepath}")
+    return results
+
+
+def _get_zenith_version() -> str:
+    """Get Zenith version string."""
+    try:
+        import zenith
+
+        return getattr(zenith, "__version__", "unknown")
+    except ImportError:
+        return "unknown"
+
+
+class MultiGPUBenchmark:
+    """
+    Multi-GPU benchmark runner.
+
+    Runs benchmarks in parallel across multiple GPUs.
+
+    Example:
+        multi_bench = MultiGPUBenchmark(device_ids=[0, 1, 2, 3])
+        results = multi_bench.run(config, model_fn, input_generator)
+    """
+
+    def __init__(self, device_ids: list = None):
+        """
+        Initialize multi-GPU benchmark.
+
+        Args:
+            device_ids: List of GPU device IDs to use.
+        """
+        self.device_ids = device_ids or [0]
+        self._validate_devices()
+
+    def _validate_devices(self) -> None:
+        """Validate that specified devices are available."""
+        try:
+            import torch
+
+            if not torch.cuda.is_available():
+                logger.warning("CUDA not available, falling back to CPU")
+                self.device_ids = [0]
+                self._cuda_available = False
+                return
+
+            num_gpus = torch.cuda.device_count()
+            valid_ids = []
+            for device_id in self.device_ids:
+                if device_id < num_gpus:
+                    valid_ids.append(device_id)
+                else:
+                    logger.warning(
+                        f"Device {device_id} not available (only {num_gpus} GPUs found)"
+                    )
+            self.device_ids = valid_ids or [0]
+            self._cuda_available = True
+
+        except ImportError:
+            logger.warning("PyTorch not available, using CPU only")
+            self.device_ids = [0]
+            self._cuda_available = False
+
+    def run(
+        self,
+        config: BenchmarkConfig,
+        model_fn: Callable,
+        input_generator: Callable,
+        reference_fn: Optional[Callable] = None,
+    ) -> dict:
+        """
+        Run benchmarks across multiple GPUs.
+
+        Args:
+            config: Benchmark configuration.
+            model_fn: Model function factory (device_id -> model_fn).
+            input_generator: Input generator function.
+            reference_fn: Optional reference function.
+
+        Returns:
+            Dictionary mapping device_id to list of BenchmarkResult.
+        """
+        from concurrent.futures import ThreadPoolExecutor
+
+        results = {}
+
+        def run_on_device(device_id: int) -> list:
+            device = f"cuda:{device_id}" if self._cuda_available else "cpu"
+            benchmark = ZenithBenchmark(device=device)
+
+            device_model_fn = model_fn
+            if callable(model_fn) and hasattr(model_fn, "__call__"):
+                try:
+                    device_model_fn = model_fn(device_id)
+                except TypeError:
+                    pass
+
+            return benchmark.run(config, device_model_fn, input_generator, reference_fn)
+
+        if len(self.device_ids) == 1:
+            results[self.device_ids[0]] = run_on_device(self.device_ids[0])
+        else:
+            with ThreadPoolExecutor(max_workers=len(self.device_ids)) as executor:
+                futures = {
+                    device_id: executor.submit(run_on_device, device_id)
+                    for device_id in self.device_ids
+                }
+                for device_id, future in futures.items():
+                    try:
+                        results[device_id] = future.result()
+                    except Exception as e:
+                        logger.error(f"Benchmark failed on GPU {device_id}: {e}")
+                        results[device_id] = []
+
+        return results
+
+    def aggregate_results(self, multi_results: dict) -> list:
+        """
+        Aggregate results from multiple GPUs.
+
+        Args:
+            multi_results: Dict from run() method.
+
+        Returns:
+            Combined list of all results.
+        """
+        all_results = []
+        for device_id, device_results in multi_results.items():
+            for result in device_results:
+                result.model_name = f"{result.model_name} (GPU:{device_id})"
+                all_results.append(result)
+        return all_results
