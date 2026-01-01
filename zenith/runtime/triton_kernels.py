@@ -70,12 +70,49 @@ def get_version() -> Optional[str]:
 # =============================================================================
 
 if _HAS_TRITON:
-
+    # T4 has 40 SMs, 64KB shared memory per SM
+    # Optimal configs discovered through extensive testing
     @triton.autotune(
         configs=[
-            triton.Config({"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32}, num_warps=4),
-            triton.Config({"BLOCK_M": 64, "BLOCK_N": 64, "BLOCK_K": 32}, num_warps=4),
-            triton.Config({"BLOCK_M": 128, "BLOCK_N": 64, "BLOCK_K": 32}, num_warps=8),
+            # Small matrices - minimize overhead
+            triton.Config(
+                {"BLOCK_M": 16, "BLOCK_N": 16, "BLOCK_K": 16}, num_warps=2, num_stages=1
+            ),
+            triton.Config(
+                {"BLOCK_M": 16, "BLOCK_N": 32, "BLOCK_K": 32}, num_warps=2, num_stages=2
+            ),
+            # Medium matrices - balanced
+            triton.Config(
+                {"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32}, num_warps=4, num_stages=2
+            ),
+            triton.Config(
+                {"BLOCK_M": 32, "BLOCK_N": 64, "BLOCK_K": 32}, num_warps=4, num_stages=2
+            ),
+            triton.Config(
+                {"BLOCK_M": 64, "BLOCK_N": 32, "BLOCK_K": 32}, num_warps=4, num_stages=2
+            ),
+            # Large matrices - maximize throughput
+            triton.Config(
+                {"BLOCK_M": 64, "BLOCK_N": 64, "BLOCK_K": 32}, num_warps=4, num_stages=3
+            ),
+            triton.Config(
+                {"BLOCK_M": 64, "BLOCK_N": 64, "BLOCK_K": 64}, num_warps=4, num_stages=2
+            ),
+            triton.Config(
+                {"BLOCK_M": 128, "BLOCK_N": 64, "BLOCK_K": 32},
+                num_warps=8,
+                num_stages=3,
+            ),
+            triton.Config(
+                {"BLOCK_M": 64, "BLOCK_N": 128, "BLOCK_K": 32},
+                num_warps=8,
+                num_stages=3,
+            ),
+            triton.Config(
+                {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 32},
+                num_warps=8,
+                num_stages=2,
+            ),
         ],
         key=["M", "N", "K"],
     )
@@ -157,8 +194,20 @@ if _HAS_TRITON:
 
     @triton.autotune(
         configs=[
-            triton.Config({"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32}, num_warps=4),
-            triton.Config({"BLOCK_M": 64, "BLOCK_N": 64, "BLOCK_K": 32}, num_warps=4),
+            triton.Config(
+                {"BLOCK_M": 16, "BLOCK_N": 16, "BLOCK_K": 16}, num_warps=2, num_stages=1
+            ),
+            triton.Config(
+                {"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32}, num_warps=4, num_stages=2
+            ),
+            triton.Config(
+                {"BLOCK_M": 64, "BLOCK_N": 64, "BLOCK_K": 32}, num_warps=4, num_stages=3
+            ),
+            triton.Config(
+                {"BLOCK_M": 128, "BLOCK_N": 64, "BLOCK_K": 32},
+                num_warps=8,
+                num_stages=3,
+            ),
         ],
         key=["M", "N", "K"],
     )
