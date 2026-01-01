@@ -140,11 +140,14 @@ if _HAS_TRITON:
             acc = acc + b[None, :]
 
         # GELU approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
+        # Using sigmoid-based tanh: tanh(x) = 2*sigmoid(2x) - 1
         SQRT_2_OVER_PI = 0.7978845608028654
         x = acc
         x3 = x * x * x
         inner = SQRT_2_OVER_PI * (x + 0.044715 * x3)
-        out = 0.5 * x * (1.0 + tl.libdevice.tanh(inner))
+        # tanh via sigmoid: tanh(x) = 2 * sigmoid(2x) - 1
+        tanh_approx = 2.0 * tl.sigmoid(2.0 * inner) - 1.0
+        out = 0.5 * x * (1.0 + tanh_approx)
 
         out_ptrs = (
             out_ptr + offs_m[:, None] * stride_outm + offs_n[None, :] * stride_outn
