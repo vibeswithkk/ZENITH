@@ -715,27 +715,27 @@ class PyTorchAdapter(BaseAdapter):
                     f"{compiled_model.compile_stats.num_supported_ops} ops optimized"
                 )
 
-                # Create wrapper that converts PyTorch tensors properly
-                # Use OptimizedExecutor for direct tensor execution
-                from ..runtime.cuda_optimized import create_optimized_wrapper
+                # Use FXKernelExecutor for real kernel dispatch
+                from ..runtime.fx_executor import FXKernelExecutor
 
-                # Create optimized wrapper that uses torch.autocast
-                optimized_fn = create_optimized_wrapper(
-                    gm.forward, precision=precision, device=target
+                # Create kernel executor that routes to Zenith kernels
+                fx_executor = FXKernelExecutor(
+                    precision=precision,
+                    device=target,
                 )
 
+                # Create wrapper using kernel executor
+                optimized_fn = fx_executor.wrap(gm.forward)
+
                 logger.info(
-                    f"Zenith compilation successful: "
-                    f"{compiled_model.compile_stats.num_supported_ops} ops optimized"
+                    f"Kernel dispatch enabled: dispatcher={fx_executor.has_dispatcher}"
                 )
 
                 def zenith_optimized_forward(*args, **kw):
-                    """Execute using Zenith's optimized kernels with autocast."""
+                    """Execute using Zenith kernel dispatch."""
                     try:
-                        # Use optimized wrapper for direct tensor execution
                         return optimized_fn(*args, **kw)
                     except Exception as e:
-                        # Fallback to original on runtime error
                         logger.debug(f"Zenith runtime fallback: {e}")
                         return gm.forward(*args, **kw)
 

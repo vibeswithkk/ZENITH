@@ -103,6 +103,11 @@ class KernelRegistry:
         self._kernels: dict[str, list[KernelSpec]] = {}
         self._initialized = False
 
+    @property
+    def is_initialized(self) -> bool:
+        """Check if registry has been initialized with kernels."""
+        return self._initialized
+
     def register(self, spec: KernelSpec) -> None:
         """Register a kernel specification."""
         for op_type in spec.op_types:
