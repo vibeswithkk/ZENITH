@@ -675,23 +675,18 @@ class PyTorchAdapter(BaseAdapter):
             model_type = self._detect_model_type(gm)
             logger.debug(f"Detected model type: {model_type}")
 
-            # SMART DELEGATION: CV models perform better with inductor
-            # Inductor has native Conv-BN fusion which we don't have yet
+            # SMART ROUTING: CV models - use zero overhead (passthrough)
+            # Note: We cannot delegate to inductor from inside torch.compile
+            # because it causes double compilation overhead. Instead, we
+            # simply return gm.forward which allows PyTorch to use inductor
+            # directly if user wants (via torch.compile(model, backend='inductor'))
             if model_type == "cv":
                 logger.info(
-                    "CV model detected - delegating to inductor for optimal "
-                    "Conv-BN fusion (Zenith excels at NLP/LLM workloads)"
+                    "CV model detected - using zero overhead mode. "
+                    "For best CV performance, use torch.compile(model, backend='inductor') "
+                    "directly. Zenith excels at NLP/LLM workloads."
                 )
-                try:
-                    # Use inductor's superior CV optimizations
-                    _torch = self._get_torch()
-                    inductor_compiled = _torch.compile(
-                        gm, backend="inductor", mode="reduce-overhead"
-                    )
-                    return inductor_compiled
-                except Exception as e:
-                    logger.warning(f"Inductor delegation failed: {e}")
-                    # Fall through to Zenith optimization
+                return gm.forward
 
             # PHASE 1: FX graph pattern optimizations (opt_level >= 2)
             # For NLP/LLM models where Zenith excels
