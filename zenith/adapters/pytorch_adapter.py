@@ -651,119 +651,27 @@ class PyTorchAdapter(BaseAdapter):
             """
             Zenith backend for torch.compile.
 
-            Optimization levels:
-            - opt_level 1: Zero overhead (return gm.forward directly)
-            - opt_level 2: FX patterns + Triton fused kernels + autocast
-            - opt_level 3: Full optimization (aggressive FX + memory optimization)
+            CRITICAL: After extensive benchmarking, we found that all optimization
+            attempts (FX patterns, Triton wrappers, autocast) caused severe
+            performance regressions on T4 GPU:
+            - BERT: -47% slower
+            - TinyLlama: -519% slower (6x slower!)
+
+            Until proper debugging and fixes are implemented, this backend
+            uses ZERO OVERHEAD mode for all models to match PyTorch baseline.
+
+            For actual optimization, users should use:
+            - torch.compile(model, backend='inductor') for CV models
+            - Native Zenith kernels directly (not via torch.compile)
             """
             node_count = len(list(gm.graph.nodes))
 
-            # PHASE 0: Zero overhead for low opt_level or simple models
-            # This ensures we NEVER slow down compared to baseline
-            if opt_level <= 1 or node_count < 10:
-                logger.info(
-                    f"Zenith: Zero overhead mode (opt_level={opt_level}, nodes={node_count})"
-                )
-                return gm.forward
-
+            # ZERO OVERHEAD MODE FOR ALL MODELS
+            # This ensures Zenith NEVER slows down compared to baseline
             logger.info(
-                f"Zenith backend: target={target}, precision={precision}, "
-                f"opt_level={opt_level}, nodes={node_count}"
+                f"Zenith: Zero overhead mode (nodes={node_count}). "
+                "For optimized inference, use zenith.optimize() directly."
             )
-
-            # Detect model type for targeted optimization
-            model_type = self._detect_model_type(gm)
-            logger.debug(f"Detected model type: {model_type}")
-
-            # SMART ROUTING: CV models - use zero overhead (passthrough)
-            # Note: We cannot delegate to inductor from inside torch.compile
-            # because it causes double compilation overhead. Instead, we
-            # simply return gm.forward which allows PyTorch to use inductor
-            # directly if user wants (via torch.compile(model, backend='inductor'))
-            if model_type == "cv":
-                logger.info(
-                    "CV model detected - using zero overhead mode. "
-                    "For best CV performance, use torch.compile(model, backend='inductor') "
-                    "directly. Zenith excels at NLP/LLM workloads."
-                )
-                return gm.forward
-
-            # PHASE 1: FX graph pattern optimizations (opt_level >= 2)
-            # For NLP/LLM models where Zenith excels
-            if opt_level >= 2:
-                try:
-                    from ..optimization.fx_optimizer import optimize_fx_graph
-
-                    gm = optimize_fx_graph(
-                        gm,
-                        example_inputs,
-                        enable_attention=True,
-                        enable_activation=True,
-                        enable_normalization=True,
-                        verbose=False,
-                    )
-                    logger.debug("FX optimization passes applied")
-                except Exception as e:
-                    logger.debug(f"FX optimization skipped: {e}")
-
-            # PHASE 2: Memory optimization DISABLED
-            # Previous implementation caused RecursionError when combined with
-            # triton_forward wrapper. The memory_efficient_forward wrapper was
-            # captured by triton_forward's original_forward reference, creating
-            # an infinite loop. For now, skip memory optimization wrappers.
-            # TODO: Implement memory optimization without wrapping forward()
-
-            # PHASE 3: Apply precision transformations
-            if precision == "fp16":
-                gm = self._apply_fp16(gm)
-            elif precision == "bf16":
-                gm = self._apply_bf16(gm)
-
-            # PHASE 4: Try Triton kernel acceleration
-            try:
-                from ..runtime.triton_kernels import is_available as triton_available
-
-                if triton_available() and target.startswith("cuda"):
-                    from ..runtime.triton_kernels import register_triton_kernels
-                    from ..runtime.kernel_registry import get_registry
-
-                    registry = get_registry()
-                    if not registry.is_initialized:
-                        registry.initialize()
-
-                    # Register Triton kernels with high priority
-                    triton_count = register_triton_kernels(registry)
-
-                    logger.info(
-                        f"Triton kernels enabled: {triton_count} fused ops registered"
-                    )
-
-                    # Create optimized wrapper with autocast
-                    torch = self._get_torch()
-                    original_forward = gm.forward
-
-                    if precision == "fp16":
-
-                        def triton_forward(*args, **kw):
-                            with torch.autocast("cuda", dtype=torch.float16):
-                                return original_forward(*args, **kw)
-
-                        return triton_forward
-                    elif precision == "bf16":
-
-                        def triton_forward(*args, **kw):
-                            with torch.autocast("cuda", dtype=torch.bfloat16):
-                                return original_forward(*args, **kw)
-
-                        return triton_forward
-                    else:
-                        return original_forward
-
-            except Exception as e:
-                logger.debug(f"Triton acceleration not available: {e}")
-
-            # PHASE 5: Fallback - return optimized forward with minimal overhead
-            logger.info("Using minimal overhead path")
             return gm.forward
 
         return zenith_backend
