@@ -653,8 +653,8 @@ class PyTorchAdapter(BaseAdapter):
 
             Optimization levels:
             - opt_level 1: Zero overhead (return gm.forward directly)
-            - opt_level 2: Triton fused kernels + autocast
-            - opt_level 3: Full optimization (FX patterns + Triton)
+            - opt_level 2: FX patterns + Triton fused kernels + autocast
+            - opt_level 3: Full optimization (aggressive FX + memory optimization)
             """
             node_count = len(list(gm.graph.nodes))
 
@@ -671,10 +671,18 @@ class PyTorchAdapter(BaseAdapter):
                 f"opt_level={opt_level}, nodes={node_count}"
             )
 
-            # PHASE 1: FX graph pattern optimizations (opt_level >= 3 only)
-            if opt_level >= 3:
+            # Detect model type for targeted optimization
+            model_type = self._detect_model_type(gm)
+            logger.debug(f"Detected model type: {model_type}")
+
+            # PHASE 1: FX graph pattern optimizations (opt_level >= 2)
+            # FIX: Previously only at opt_level >= 3, now enabled at 2+
+            if opt_level >= 2:
                 try:
                     from ..optimization.fx_optimizer import optimize_fx_graph
+
+                    # Aggressive optimization for CV models (ResNet, EfficientNet, etc.)
+                    enable_conv_bn_fusion = model_type == "cv"
 
                     gm = optimize_fx_graph(
                         gm,
@@ -688,13 +696,29 @@ class PyTorchAdapter(BaseAdapter):
                 except Exception as e:
                     logger.debug(f"FX optimization skipped: {e}")
 
-            # PHASE 2: Apply precision transformations
+            # PHASE 2: Memory optimization (opt_level >= 3 or large models)
+            if opt_level >= 3 or node_count > 500:
+                try:
+                    # Enable inference mode for memory efficiency
+                    original_forward = gm.forward
+
+                    def memory_efficient_forward(*args, **kw):
+                        with torch.inference_mode():
+                            result = original_forward(*args, **kw)
+                        return result
+
+                    gm.forward = memory_efficient_forward
+                    logger.debug("Memory optimization applied")
+                except Exception as e:
+                    logger.debug(f"Memory optimization skipped: {e}")
+
+            # PHASE 3: Apply precision transformations
             if precision == "fp16":
                 gm = self._apply_fp16(gm)
             elif precision == "bf16":
                 gm = self._apply_bf16(gm)
 
-            # PHASE 3: Try Triton kernel acceleration
+            # PHASE 4: Try Triton kernel acceleration
             try:
                 from ..runtime.triton_kernels import is_available as triton_available
 
@@ -737,11 +761,62 @@ class PyTorchAdapter(BaseAdapter):
             except Exception as e:
                 logger.debug(f"Triton acceleration not available: {e}")
 
-            # PHASE 4: Fallback - return optimized forward with minimal overhead
+            # PHASE 5: Fallback - return optimized forward with minimal overhead
             logger.info("Using minimal overhead path")
             return gm.forward
 
         return zenith_backend
+
+    def _detect_model_type(self, gm: Any) -> str:
+        """
+        Detect model type from FX graph for targeted optimization.
+
+        Returns:
+            "cv": Computer Vision (ResNet, EfficientNet, etc.)
+            "nlp": NLP/Transformer models
+            "llm": Large Language Models
+            "generic": Unknown/generic model
+        """
+        node_names = [n.name for n in gm.graph.nodes]
+        node_ops = [getattr(n, "target", "") for n in gm.graph.nodes]
+
+        # Convert to strings for pattern matching
+        all_names = " ".join(str(n) for n in node_names + list(node_ops))
+
+        # CV model detection (convolutions, batch norms)
+        cv_patterns = [
+            "conv",
+            "batch_norm",
+            "bn",
+            "pool",
+            "resnet",
+            "efficientnet",
+            "mobilenet",
+        ]
+        cv_score = sum(1 for p in cv_patterns if p in all_names.lower())
+
+        # NLP/Transformer detection
+        nlp_patterns = [
+            "attention",
+            "layernorm",
+            "embedding",
+            "transformer",
+            "bert",
+            "gpt",
+        ]
+        nlp_score = sum(1 for p in nlp_patterns if p in all_names.lower())
+
+        # LLM detection (large models with specific patterns)
+        llm_patterns = ["kv_cache", "rotary", "rope", "llama", "mistral", "causal"]
+        llm_score = sum(1 for p in llm_patterns if p in all_names.lower())
+
+        if llm_score > 0:
+            return "llm"
+        elif cv_score > nlp_score:
+            return "cv"
+        elif nlp_score > 0:
+            return "nlp"
+        return "generic"
 
     def _fx_graph_to_graphir(
         self,

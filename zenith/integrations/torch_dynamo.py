@@ -32,7 +32,7 @@ _ZENITH_BACKEND_INSTANCE = None
 
 def _create_zenith_backend(
     target: str = "cuda",
-    precision: str = "fp32",
+    precision: str = "auto",
     opt_level: int = 2,
 ) -> Callable:
     """
@@ -43,14 +43,35 @@ def _create_zenith_backend(
 
     Args:
         target: Target device ("cuda", "cpu")
-        precision: Precision level ("fp32", "fp16", "bf16")
+        precision: Precision level ("auto", "fp32", "fp16", "bf16")
         opt_level: Optimization level (1-3)
 
     Returns:
         Backend callable for torch.compile
     """
     try:
-        from zenith.adapters.pytorch_adapter import PyTorchAdapter, ZenithPyTorchConfig
+        from zenith.adapters.pytorch_adapter import (
+            PyTorchAdapter,
+            ZenithPyTorchConfig,
+        )
+
+        # Auto-detect precision based on GPU capabilities
+        if precision == "auto":
+            try:
+                import torch
+
+                if torch.cuda.is_available():
+                    # Check for bf16 support (Ampere+ = compute capability 8.0+)
+                    if torch.cuda.is_bf16_supported():
+                        precision = "bf16"
+                        logger.info("Auto-detected bf16 support, using bf16")
+                    else:
+                        precision = "fp32"
+                        logger.info("bf16 not supported, using fp32")
+                else:
+                    precision = "fp32"
+            except Exception:
+                precision = "fp32"
 
         # Create adapter with proper configuration
         config = ZenithPyTorchConfig(
@@ -80,7 +101,7 @@ def _create_zenith_backend(
 def register_backend(
     name: str = "zenith",
     target: str = "cuda",
-    precision: str = "fp32",
+    precision: str = "auto",  # FIX: Auto-detect instead of always fp32
     opt_level: int = 2,
     force: bool = False,
 ) -> bool:
