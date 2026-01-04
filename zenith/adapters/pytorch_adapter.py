@@ -675,14 +675,29 @@ class PyTorchAdapter(BaseAdapter):
             model_type = self._detect_model_type(gm)
             logger.debug(f"Detected model type: {model_type}")
 
+            # SMART DELEGATION: CV models perform better with inductor
+            # Inductor has native Conv-BN fusion which we don't have yet
+            if model_type == "cv":
+                logger.info(
+                    "CV model detected - delegating to inductor for optimal "
+                    "Conv-BN fusion (Zenith excels at NLP/LLM workloads)"
+                )
+                try:
+                    # Use inductor's superior CV optimizations
+                    _torch = self._get_torch()
+                    inductor_compiled = _torch.compile(
+                        gm, backend="inductor", mode="reduce-overhead"
+                    )
+                    return inductor_compiled
+                except Exception as e:
+                    logger.warning(f"Inductor delegation failed: {e}")
+                    # Fall through to Zenith optimization
+
             # PHASE 1: FX graph pattern optimizations (opt_level >= 2)
-            # FIX: Previously only at opt_level >= 3, now enabled at 2+
+            # For NLP/LLM models where Zenith excels
             if opt_level >= 2:
                 try:
                     from ..optimization.fx_optimizer import optimize_fx_graph
-
-                    # Aggressive optimization for CV models (ResNet, EfficientNet, etc.)
-                    enable_conv_bn_fusion = model_type == "cv"
 
                     gm = optimize_fx_graph(
                         gm,
