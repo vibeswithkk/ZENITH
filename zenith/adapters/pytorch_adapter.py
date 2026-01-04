@@ -706,21 +706,12 @@ class PyTorchAdapter(BaseAdapter):
                 except Exception as e:
                     logger.debug(f"FX optimization skipped: {e}")
 
-            # PHASE 2: Memory optimization (opt_level >= 3 or large models)
-            if opt_level >= 3 or node_count > 500:
-                try:
-                    # Enable inference mode for memory efficiency
-                    original_forward = gm.forward
-
-                    def memory_efficient_forward(*args, **kw):
-                        with torch.inference_mode():
-                            result = original_forward(*args, **kw)
-                        return result
-
-                    gm.forward = memory_efficient_forward
-                    logger.debug("Memory optimization applied")
-                except Exception as e:
-                    logger.debug(f"Memory optimization skipped: {e}")
+            # PHASE 2: Memory optimization DISABLED
+            # Previous implementation caused RecursionError when combined with
+            # triton_forward wrapper. The memory_efficient_forward wrapper was
+            # captured by triton_forward's original_forward reference, creating
+            # an infinite loop. For now, skip memory optimization wrappers.
+            # TODO: Implement memory optimization without wrapping forward()
 
             # PHASE 3: Apply precision transformations
             if precision == "fp16":
